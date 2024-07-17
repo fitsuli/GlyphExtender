@@ -3,7 +3,7 @@ package com.fitsuli.glyphextender
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,16 +15,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat.startForegroundService
+import androidx.core.app.NotificationManagerCompat
 import com.fitsuli.glyphextender.ui.theme.GlyphExtenderTheme
 import com.nothing.ketchum.Common
 import com.nothing.ketchum.Glyph.Code_22111
@@ -32,6 +30,7 @@ import com.nothing.ketchum.GlyphException
 import com.nothing.ketchum.GlyphManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
     private val mGM: GlyphManager by lazy {
@@ -45,7 +44,7 @@ class MainActivity : ComponentActivity() {
             try {
                 mGM.openSession()
             } catch (e: GlyphException) {
-                Log.e("FFFF", e.message!!)
+                Timber.e(e)
             }
         }
 
@@ -58,7 +57,7 @@ class MainActivity : ComponentActivity() {
         try {
             mGM.closeSession()
         } catch (e: GlyphException) {
-            Log.e("FFFF", e.message!!)
+            Timber.e(e)
         }
         mGM.unInit()
         super.onDestroy()
@@ -67,7 +66,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        mGM.init(mCallback)
+        //mGM.init(mCallback)
         setContent {
             GlyphExtenderTheme {
                 Surface(
@@ -85,7 +84,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun TestUi(mGM: GlyphManager) {
     Column(
-        modifier = Modifier.verticalScroll(rememberScrollState())
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
             .systemBarsPadding()
     ) {
@@ -139,7 +139,28 @@ private fun TestUi(mGM: GlyphManager) {
                 context.startForegroundService(Intent(context, GlyphService::class.java))
             }
         ) {
-            Text(text = "run the service (!!!)")
+            Text(text = "run the service manually (!!!)")
+        }
+
+        Button(onClick = {
+            if (!NotificationManagerCompat.getEnabledListenerPackages(context)
+                    .contains(BuildConfig.APPLICATION_ID)
+            ) {
+                val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                    .putExtra(
+                        Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                        ComponentName(
+                            BuildConfig.APPLICATION_ID,
+                            GlyphService::class.java.name
+                        ).flattenToString()
+                    )
+
+                runCatching {
+                    context.startActivity(intent)
+                }
+            }
+        }) {
+            Text(text = "request notification access when not granted")
         }
         Button(
             onClick = {

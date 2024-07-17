@@ -1,24 +1,38 @@
 package com.fitsuli.glyphextender
 
+import android.app.Notification
 import android.app.NotificationManager
-import android.app.Service
 import android.content.ComponentName
 import android.content.Intent
+import android.media.MediaMetadata
+import android.media.session.MediaController
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.os.IBinder
-import android.util.Log
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.fitsuli.glyphextender.extensions.animateProgressBack
 import com.nothing.ketchum.Common
+import com.nothing.ketchum.Glyph.Code_20111
 import com.nothing.ketchum.Glyph.Code_22111
+import com.nothing.ketchum.Glyph.Code_23111
 import com.nothing.ketchum.GlyphException
 import com.nothing.ketchum.GlyphManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import timber.log.Timber
 
-class GlyphService : Service() {
+class GlyphService : NotificationListenerService() {
 
-    override fun onBind(intent: Intent): IBinder {
-        TODO("Return the communication channel to the service.")
-    }
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     private val mGM: GlyphManager = GlyphManager.getInstance(this)
     private var mCallback: GlyphManager.Callback = object : GlyphManager.Callback {
@@ -28,9 +42,9 @@ class GlyphService : Service() {
             if (Common.is23111()) mGM.register(Common.DEVICE_23111)
             try {
                 mGM.openSession()
-                A1BlockExample()
+                Timber.d("onServiceConnected!")
             } catch (e: GlyphException) {
-                Log.e("FFFF", e.message!!)
+                Timber.e(e)
             }
         }
 
@@ -39,20 +53,25 @@ class GlyphService : Service() {
         }
     }
 
+    override fun onBind(intent: Intent): IBinder? {
+        return super.onBind(intent)
+    }
+
     private fun A1BlockExample() {
         val builder = mGM.glyphFrameBuilder
         val frame = builder
             .run {
-                if (Common.is22111()) {
-                    buildChannel(Code_22111.A1, 4000)
-                } else if (Common.is23111()) {
-                    buildChannel(Code_22111.A1, 4000)
-                } else {
-                    buildChannel(Code_22111.A1, 4000)
-                }
+                buildChannel(
+                    when {
+                        Common.is22111() -> Code_22111.A1
+                        Common.is23111() -> Code_23111.A
+                        else -> Code_20111.A1
+                    },
+                    4000
+                )
             }
             .build()
-//                                .buildInterval()
+
         mGM.toggle(frame)
     }
 
@@ -61,7 +80,7 @@ class GlyphService : Service() {
         try {
             mGM.closeSession()
         } catch (e: GlyphException) {
-            Log.e("FFFF", e.message!!)
+            Timber.e(e)
         }
         mGM.unInit()
         super.onDestroy()
@@ -70,7 +89,10 @@ class GlyphService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        val channel = NotificationChannelCompat.Builder("glyph_extender", NotificationManager.IMPORTANCE_DEFAULT)
+        val channel = NotificationChannelCompat.Builder(
+            "glyph_extender",
+            NotificationManager.IMPORTANCE_DEFAULT
+        )
             .setName("GlyphExtender")
             .build()
         NotificationManagerCompat.from(this).createNotificationChannel(channel)
@@ -88,4 +110,84 @@ class GlyphService : Service() {
         return START_STICKY
     }
 
+    private var runningMediaToken: MediaSession.Token? = null
+    private var progressJob: Job? = null
+
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
+        super.onNotificationPosted(sbn)
+        scope.launch {
+            val keySet = sbn.notification.extras.keySet()
+            val extrasData = keySet
+                .joinToString("\n") { key -> "$key: ${sbn.notification.extras[key]}" }
+            Timber.d(
+                "onNotificationPosted: " +
+                        "\n${sbn.packageName}" +
+                        "\n${sbn.notification}" +
+                        "\n${extrasData}"
+            )
+
+/*
+            if (sbn.packageName == "ru.yandex.taxi") {
+                // get car progress from notification and convert it to glyph progress
+            val carProgress = sbn.notification.extras["car_progress"] as Int
+            val glyphProgress = carProgress * 100 / 255
+            val frame = mGM.glyphFrameBuilder.buildChannelA().buildProgress(glyphProgress).build()
+            }
+*/
+
+            if (keySet.contains(Notification.EXTRA_MEDIA_SESSION)) {
+                val mediaSessionToken = sbn.notification.extras.getParcelable(
+                    Notification.EXTRA_MEDIA_SESSION,
+                    MediaSession.Token::class.java
+                )
+                    ?: return@launch
+                Timber.d("Media session token: $mediaSessionToken")
+                if (mediaSessionToken == runningMediaToken) {
+                    Timber.d("Media session is already running")
+                    return@launch
+                }
+                runningMediaToken = mediaSessionToken
+                progressJob?.cancelAndJoin()
+                progressJob = startMediaNotificationProgress(mediaSessionToken)
+            }
+        }
+    }
+
+    // get music player notification and convert it to glyph frame with progress
+    private fun startMediaNotificationProgress(mediaSessionToken: MediaSession.Token): Job? {
+        val mediaController = MediaController(this, mediaSessionToken)
+        val metadata = mediaController.metadata ?: return null
+        if (!metadata.containsKey(MediaMetadata.METADATA_KEY_DURATION)) {
+            return null
+        }
+
+        return scope.launch {
+            val duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
+            val tick = (duration / 100).coerceAtMost(12000) // 1% of duration or 12s
+            Timber.d("Media playback duration: $duration, tick: $tick")
+            val builder = mGM.glyphFrameBuilder
+            val frame = builder.buildChannelC().build()
+
+            var progress = 0
+            while (isActive) {
+                val playbackState = mediaController.playbackState ?: return@launch
+                if (playbackState.state != PlaybackState.STATE_PLAYING) {
+                    Timber.d("Media playback state stop at: ${playbackState.state}")
+                    break
+                }
+                progress = (playbackState.position.toInt() * 100 / duration.toInt())
+                    .coerceIn(0, 100)
+                Timber.d("Media playback progress: $progress")
+                mGM.displayProgress(frame, progress)
+                delay(tick)
+            }
+            mGM.animateProgressBack(frame, progress)
+        }.apply {
+            invokeOnCompletion {
+                Timber.d(it, "Media playback progress coroutine completed")
+                runningMediaToken = null
+                progressJob = null
+            }
+        }
+    }
 }
