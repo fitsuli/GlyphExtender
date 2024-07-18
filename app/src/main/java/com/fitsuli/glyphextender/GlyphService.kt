@@ -2,6 +2,7 @@ package com.fitsuli.glyphextender
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Intent
 import android.media.MediaMetadata
@@ -9,6 +10,7 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.IBinder
+import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationChannelCompat
@@ -29,6 +31,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
+
+private const val SERVICE_CHANNEL_ID = "glyph_extender"
 
 class GlyphService : NotificationListenerService() {
 
@@ -90,17 +94,26 @@ class GlyphService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         val channel = NotificationChannelCompat.Builder(
-            "glyph_extender",
-            NotificationManager.IMPORTANCE_DEFAULT
+            SERVICE_CHANNEL_ID,
+            NotificationManager.IMPORTANCE_LOW
         )
             .setName("GlyphExtender")
             .build()
         NotificationManagerCompat.from(this).createNotificationChannel(channel)
 
-        val notification = NotificationCompat.Builder(this, "glyph_extender")
+        val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, BuildConfig.APPLICATION_ID)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
             .setContentTitle("GlyphExtender")
-            .setContentText("GlyphExtender is running")
+            .setContentText("GlyphExtender is running. Tap to turn the notification off.")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
         mGM.init(mCallback)
@@ -126,26 +139,25 @@ class GlyphService : NotificationListenerService() {
                         "\n${extrasData}"
             )
 
-/*
-            if (sbn.packageName == "ru.yandex.taxi") {
-                // get car progress from notification and convert it to glyph progress
-            val carProgress = sbn.notification.extras["car_progress"] as Int
-            val glyphProgress = carProgress * 100 / 255
-            val frame = mGM.glyphFrameBuilder.buildChannelA().buildProgress(glyphProgress).build()
-            }
-*/
+            /*
+                        if (sbn.packageName == "ru.yandex.taxi") {
+                            // get car progress from notification and convert it to glyph progress
+                        val carProgress = sbn.notification.extras["car_progress"] as Int
+                        val glyphProgress = carProgress * 100 / 255
+                        val frame = mGM.glyphFrameBuilder.buildChannelA().buildProgress(glyphProgress).build()
+                        }
+            */
 
             if (keySet.contains(Notification.EXTRA_MEDIA_SESSION)) {
                 val mediaSessionToken = sbn.notification.extras.getParcelable(
                     Notification.EXTRA_MEDIA_SESSION,
                     MediaSession.Token::class.java
-                )
-                    ?: return@launch
-                Timber.d("Media session token: $mediaSessionToken")
+                ) ?: return@launch
                 if (mediaSessionToken == runningMediaToken) {
                     Timber.d("Media session is already running")
                     return@launch
                 }
+                Timber.d("New media session token: $mediaSessionToken")
                 runningMediaToken = mediaSessionToken
                 progressJob?.cancelAndJoin()
                 progressJob = startMediaNotificationProgress(mediaSessionToken)

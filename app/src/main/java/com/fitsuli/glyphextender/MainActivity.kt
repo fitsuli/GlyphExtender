@@ -113,7 +113,7 @@ private fun TestUi(mGM: GlyphManager) {
                     } else this
                 }
                 .build()
-            //                                .buildInterval()
+
             mGM.toggle(frame)
         }) {
             Text(text = "C")
