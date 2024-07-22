@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.fitsuli.glyphextender"
-        minSdk = 33
+        minSdk = 34
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -49,7 +49,8 @@ android {
 }
 
 dependencies {
-    implementation(files("libs/KetchumSDK_Community_20240307.jar"))
+//    implementation(files("libs/KetchumSDK_Community_20240307.jar"))
+    implementation(project(":glyphs"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

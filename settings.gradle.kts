@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "GlyphExtender"
 include(":app")
+include(":glyphs")
