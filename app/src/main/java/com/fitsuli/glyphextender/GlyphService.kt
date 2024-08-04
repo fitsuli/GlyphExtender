@@ -16,7 +16,9 @@ import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.fitsuli.glyphextender.extensions.animateProgressBack
+import com.fitsuli.glyphextender.extensions.animateProgressBackToStop
+import com.fitsuli.glyphextender.extensions.showPauseBlink
+import com.fitsuli.glyphextender.utils.getMediaSessionToken
 import com.nothing.ketchum.Common
 import com.nothing.ketchum.Glyph.Code_20111
 import com.nothing.ketchum.Glyph.Code_22111
@@ -38,14 +40,20 @@ class GlyphService : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.Default)
 
-    private val mGM: GlyphManager = GlyphManager.getInstance(this)
+    private var isGlyphSessionOpen = false
+    private val mGM: GlyphManager = GlyphManager.getInstance()
     private var mCallback: GlyphManager.Callback = object : GlyphManager.Callback {
         override fun onServiceConnected(componentName: ComponentName) {
-            if (Common.is20111()) mGM.register(Common.DEVICE_20111)
-            if (Common.is22111()) mGM.register(Common.DEVICE_22111)
-            if (Common.is23111()) mGM.register(Common.DEVICE_23111)
+            when {
+                Common.is20111() -> mGM.register(applicationContext, Common.DEVICE_20111)
+                Common.is22111() -> mGM.register(applicationContext, Common.DEVICE_22111)
+                Common.is23111() -> mGM.register(applicationContext, Common.DEVICE_23111)
+                else -> return
+            }
+
             try {
                 mGM.openSession()
+                isGlyphSessionOpen = true
                 Timber.d("onServiceConnected!")
             } catch (e: GlyphException) {
                 Timber.e(e)
@@ -61,7 +69,7 @@ class GlyphService : NotificationListenerService() {
         return super.onBind(intent)
     }
 
-    private fun A1BlockExample() {
+    private suspend fun A1BlockExample() {
         val builder = mGM.glyphFrameBuilder
         val frame = builder
             .run {
@@ -70,8 +78,7 @@ class GlyphService : NotificationListenerService() {
                         Common.is22111() -> Code_22111.A1
                         Common.is23111() -> Code_23111.A
                         else -> Code_20111.A1
-                    },
-                    4000
+                    }
                 )
             }
             .build()
@@ -83,10 +90,11 @@ class GlyphService : NotificationListenerService() {
     override fun onDestroy() {
         try {
             mGM.closeSession()
+            isGlyphSessionOpen = false
         } catch (e: GlyphException) {
             Timber.e(e)
         }
-        mGM.unInit()
+        mGM.unInit(applicationContext)
         super.onDestroy()
     }
 
@@ -110,33 +118,40 @@ class GlyphService : NotificationListenerService() {
             PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
-            .setContentTitle("GlyphExtender")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText("GlyphExtender is running. Tap to turn the notification off.")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
-        mGM.init(mCallback)
+        mGM.init(applicationContext, mCallback)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
+        return START_REDELIVER_INTENT
     }
 
-    private var runningMediaToken: MediaSession.Token? = null
+    private var currentProgress = 0
+    private var currentMediaToken: MediaSession.Token? = null
+    private var currentMediaController: MediaController? = null
+    private var currentPackageName: String? = null
+    private var currentMediaDurationMs: Long = 0
+
+    private var lastMediaPlaybackState: Int = PlaybackState.STATE_NONE
+    private val glyphFrameC = mGM.glyphFrameBuilder.buildChannelC().build()
+
     private var progressJob: Job? = null
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         super.onNotificationPosted(sbn)
+        if (!isGlyphSessionOpen) return
         scope.launch {
             val keySet = sbn.notification.extras.keySet()
             val extrasData = keySet
                 .joinToString("\n") { key -> "$key: ${sbn.notification.extras[key]}" }
             Timber.d(
-                "onNotificationPosted: " +
-                        "\n${sbn.packageName}" +
-                        "\n${sbn.notification}" +
-                        "\n${extrasData}"
+                "onNotificationPosted: ${sbn.packageName}"
+//                        + "\n${sbn.notification}" + "\n${extrasData}"
             )
 
             /*
@@ -149,57 +164,132 @@ class GlyphService : NotificationListenerService() {
             */
 
             if (keySet.contains(Notification.EXTRA_MEDIA_SESSION)) {
-                val mediaSessionToken = sbn.notification.extras.getParcelable(
-                    Notification.EXTRA_MEDIA_SESSION,
-                    MediaSession.Token::class.java
-                ) ?: return@launch
-                if (mediaSessionToken == runningMediaToken) {
-                    Timber.d("Media session is already running")
-                    return@launch
-                }
-                Timber.d("New media session token: $mediaSessionToken")
-                runningMediaToken = mediaSessionToken
-                progressJob?.cancelAndJoin()
-                progressJob = startMediaNotificationProgress(mediaSessionToken)
+                val mediaSessionToken = sbn.getMediaSessionToken() ?: return@launch
+                updateMediaSession(
+                    packageName = sbn.packageName,
+                    token = mediaSessionToken
+                )
             }
         }
     }
 
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
+        super.onNotificationRemoved(sbn)
+        if (!isGlyphSessionOpen) return
+//        val keySet = sbn.notification.extras.keySet()
+//        val extrasData = keySet
+//            .joinToString("\n") { key -> "$key: ${sbn.notification.extras[key]}" }
+        Timber.d("onNotificationRemoved: ${sbn.packageName}, ${sbn.notification}")
+        scope.launch {
+            // current media session is removed
+            if (sbn.packageName == currentPackageName) {
+                cleanupMediaSession()
+                mGM.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+//                mGM.turnOff()
+            }
+        }
+    }
+
+    private suspend fun updateMediaSession(token: MediaSession.Token, packageName: String) {
+        Timber.d("Updating media session with token: $token")
+        currentPackageName = packageName
+        currentMediaToken = token
+        currentMediaController = MediaController(this@GlyphService, token)
+        progressJob?.cancelAndJoin()
+        progressJob = startMediaNotificationProgress()
+    }
+
     // get music player notification and convert it to glyph frame with progress
-    private fun startMediaNotificationProgress(mediaSessionToken: MediaSession.Token): Job? {
-        val mediaController = MediaController(this, mediaSessionToken)
-        val metadata = mediaController.metadata ?: return null
+    private fun startMediaNotificationProgress(): Job? {
+        val metadata = currentMediaController?.metadata ?: return null
         if (!metadata.containsKey(MediaMetadata.METADATA_KEY_DURATION)) {
             return null
         }
 
+        val duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION).also {
+            currentMediaDurationMs = it
+        }
         return scope.launch {
-            val duration = metadata.getLong(MediaMetadata.METADATA_KEY_DURATION)
-            val tick = (duration / 100).coerceAtMost(12000) // 1% of duration or 12s
+            Timber.d("Media playback job started")
+            val tick = (duration / 100).coerceIn(300L..12000L) // 1% of duration or 12s
             Timber.d("Media playback duration: $duration, tick: $tick")
-            val builder = mGM.glyphFrameBuilder
-            val frame = builder.buildChannelC().build()
 
-            var progress = 0
             while (isActive) {
-                val playbackState = mediaController.playbackState ?: return@launch
-                if (playbackState.state != PlaybackState.STATE_PLAYING) {
-                    Timber.d("Media playback state stop at: ${playbackState.state}")
-                    break
-                }
-                progress = (playbackState.position.toInt() * 100 / duration.toInt())
-                    .coerceIn(0, 100)
-                Timber.d("Media playback progress: $progress")
-                mGM.displayProgress(frame, progress)
+                val (shouldContinue, progress) = checkAndShowProgressWithGlyph()
+                currentProgress = progress
+                if (!shouldContinue) break
+
                 delay(tick)
             }
-            mGM.animateProgressBack(frame, progress)
-        }.apply {
-            invokeOnCompletion {
-                Timber.d(it, "Media playback progress coroutine completed")
-                runningMediaToken = null
-                progressJob = null
+
+            Timber.d("Media playback progress coroutine finishing")
+//            mGM.animateProgressBackToStop(glyphFrameC, lastProgress)
+            cleanupMediaSession()
+        }
+    }
+
+    private fun cleanupMediaSession() {
+        Timber.d("Cleaning up media session!")
+        currentMediaToken = null
+        progressJob = null
+        currentMediaController = null
+        currentPackageName = null
+        currentMediaDurationMs = 0
+        lastMediaPlaybackState = PlaybackState.STATE_NONE
+    }
+
+    /**
+     * @return true + progress if should continue, false + progress if should stop
+     * */
+    private suspend fun checkAndShowProgressWithGlyph(): Pair<Boolean, Int> {
+        val duration = currentMediaDurationMs
+        val mediaController = currentMediaController
+        val frame = glyphFrameC
+
+        val playbackState = mediaController?.playbackState ?: return false to 0
+        val progress = (playbackState.position * 100 / duration.coerceAtLeast(1L))
+            .toInt()
+            .coerceIn(0, 100)
+        val state = playbackState.state
+        Timber.d("Media playback progress: $progress, state: $state")
+
+        return when (state) {
+            PlaybackState.STATE_PLAYING -> {
+                mGM.displayProgress(frame, progress)
+                true to progress
+            }
+
+            lastMediaPlaybackState -> {
+                // make sure to run the animations only once
+                Timber.d("Media playback state is the same as last: $state")
+                false to progress
+            }
+
+            PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS, PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM, PlaybackState.STATE_PAUSED, PlaybackState.STATE_STOPPED, PlaybackState.STATE_NONE -> {
+                handleNonPlayingStates(state = state, progress = progress)
+                false to progress
+            }
+
+            else -> true to progress
+        }.also { lastMediaPlaybackState = state }
+    }
+
+    private suspend fun handleNonPlayingStates(state: Int, progress: Int) {
+        when (state) {
+            PlaybackState.STATE_PAUSED -> mGM.showPauseBlink()
+            PlaybackState.STATE_SKIPPING_TO_NEXT -> {
+//                mGM.animateProgressForward(glyphFrameC, to = 100)
+            }
+
+            // just quit and it will animate back to stop in the outer loop
+            PlaybackState.STATE_SKIPPING_TO_PREVIOUS, PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM -> {
+//                mGM.animateProgressBackToStop(glyphFrameC, from = progress)
+            }
+
+            PlaybackState.STATE_STOPPED, PlaybackState.STATE_NONE -> {
+//                mGM.animateProgressBackToStop(glyphFrameC, from = progress)
             }
         }
+        Timber.d("Handled non-playing media playback state: $state")
     }
 }

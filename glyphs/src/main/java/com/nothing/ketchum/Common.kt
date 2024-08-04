@@ -67,10 +67,7 @@ object Common {
     }
 
     private fun isCorrectTargetDevice(value: String?): Boolean {
-        if (mVerifyTragetDevice.contains(value)) {
-            return true
-        }
-        return false
+        return mVerifyTragetDevice.contains(value)
     }
 
     /* JADX INFO: Access modifiers changed from: package-private */
@@ -89,25 +86,16 @@ object Common {
 
     /* JADX INFO: Access modifiers changed from: package-private */
     fun isTargetDevice20111(targetDevice: String?): Boolean {
-        if (Glyph.DEVICE_20111 == targetDevice) {
-            return true
-        }
-        return false
+        return Glyph.DEVICE_20111 == targetDevice
     }
 
     /* JADX INFO: Access modifiers changed from: package-private */
     fun isTargetDevice22111(targetDevice: String?): Boolean {
-        if (Glyph.DEVICE_22111 == targetDevice) {
-            return true
-        }
-        return false
+        return Glyph.DEVICE_22111 == targetDevice
     }
 
     /* JADX INFO: Access modifiers changed from: package-private */
     fun isTargetDevice23111(targetDevice: String?): Boolean {
-        if (Glyph.DEVICE_23111 == targetDevice) {
-            return true
-        }
-        return false
+        return Glyph.DEVICE_23111 == targetDevice
     }
 }

@@ -18,14 +18,9 @@ class GlyphFrame private constructor(builder: Builder) {
         this.mChannel = builder.channel
     }
 
-    val channel: IntArray
-        get() {
-            val result = IntArray(mChannel.size)
-            for (i in mChannel.indices) {
-                result[i] = (if (mChannel[i] != null) mChannel[i] else 0)!!
-            }
-            return result
-        }
+    val channel: IntArray = IntArray(mChannel.size) { i ->
+        mChannel[i] ?: 0 // fill with data from mChannel or 0 if null
+    }
 
     /* loaded from: KetchumSDK_Community_20240307.jar:com/nothing/ketchum/GlyphFrame$Builder.class */
     class Builder {
@@ -82,12 +77,10 @@ class GlyphFrame private constructor(builder: Builder) {
         fun buildChannelA(): Builder {
             if (Common.isTargetDevice20111(this.mDevice)) {
                 channel[Code_20111.A1] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(this.mDevice)) {
                 channel[Code_22111.A1] = DEFAULT_LIGHT
                 channel[Code_22111.A2] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice23111(this.mDevice)) {
+            } else if (Common.isTargetDevice23111(this.mDevice)) {
                 channel[Code_23111.A] = DEFAULT_LIGHT
             }
             return this
@@ -96,11 +89,9 @@ class GlyphFrame private constructor(builder: Builder) {
         fun buildChannelB(): Builder {
             if (Common.isTargetDevice20111(this.mDevice)) {
                 channel[Code_20111.B1] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(this.mDevice)) {
                 channel[Code_22111.B1] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice23111(this.mDevice)) {
+            } else if (Common.isTargetDevice23111(this.mDevice)) {
                 channel[Code_23111.B] = DEFAULT_LIGHT
             }
             return this
@@ -112,8 +103,7 @@ class GlyphFrame private constructor(builder: Builder) {
                 channel[Code_20111.C2] = DEFAULT_LIGHT
                 channel[Code_20111.C3] = DEFAULT_LIGHT
                 channel[Code_20111.C4] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(this.mDevice)) {
                 channel[Code_22111.C1_1] = DEFAULT_LIGHT
                 channel[Code_22111.C1_2] = DEFAULT_LIGHT
                 channel[Code_22111.C1_3] = DEFAULT_LIGHT
@@ -135,8 +125,7 @@ class GlyphFrame private constructor(builder: Builder) {
                 channel[Code_22111.C4] = DEFAULT_LIGHT
                 channel[Code_22111.C5] = DEFAULT_LIGHT
                 channel[Code_22111.C6] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice23111(this.mDevice)) {
+            } else if (Common.isTargetDevice23111(this.mDevice)) {
                 channel[Code_23111.C_1] = DEFAULT_LIGHT
                 channel[Code_23111.C_2] = DEFAULT_LIGHT
                 channel[Code_23111.C_3] = DEFAULT_LIGHT
@@ -175,8 +164,7 @@ class GlyphFrame private constructor(builder: Builder) {
                 channel[Code_20111.D1_6] = DEFAULT_LIGHT
                 channel[Code_20111.D1_7] = DEFAULT_LIGHT
                 channel[Code_20111.D1_8] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(this.mDevice)) {
                 channel[Code_22111.D1_1] = DEFAULT_LIGHT
                 channel[Code_22111.D1_2] = DEFAULT_LIGHT
                 channel[Code_22111.D1_3] = DEFAULT_LIGHT
@@ -192,8 +180,7 @@ class GlyphFrame private constructor(builder: Builder) {
         fun buildChannelE(): Builder {
             if (Common.isTargetDevice20111(this.mDevice)) {
                 channel[Code_20111.E1] = DEFAULT_LIGHT
-            }
-            if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(this.mDevice)) {
                 channel[Code_22111.E1] = DEFAULT_LIGHT
             }
             return this

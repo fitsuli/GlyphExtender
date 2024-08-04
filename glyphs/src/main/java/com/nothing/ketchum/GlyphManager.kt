@@ -11,20 +11,24 @@ import com.nothing.ketchum.Glyph.Code_20111
 import com.nothing.ketchum.Glyph.Code_22111
 import com.nothing.ketchum.Glyph.Code_23111
 import com.nothing.thirdparty.IGlyphService
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /* loaded from: KetchumSDK_Community_20240307.jar:com/nothing/ketchum/GlyphManager.class */
-class GlyphManager private constructor(private val mContext: Context) {
+class GlyphManager {
     private var mService: IGlyphService? = null
     private var mCallback: Callback? = null
     private val mConnection = RemoteServiceConnection()
     private var mHasAuthorized = false
     private val isTaskOn = false
-    private var mTask: Future<*>? = null
+    private var job: Job? = null
     private var mDevice: String? = null
-    private val mExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /* loaded from: KetchumSDK_Community_20240307.jar:com/nothing/ketchum/GlyphManager$Callback.class */
     interface Callback {
@@ -33,28 +37,28 @@ class GlyphManager private constructor(private val mContext: Context) {
         fun onServiceDisconnected(componentName: ComponentName)
     }
 
-    fun init(callback: Callback?) {
+    fun init(mContext: Context, callback: Callback?) {
         this.mCallback = callback
-        val launchService = Intent()
-        launchService.setPackage("com.nothing.thirdparty")
-        launchService.setAction("com.nothing.thirdparty.bind_glyphservice")
-        launchService.setComponent(
-            ComponentName(
+        val launchService = Intent().apply {
+            action = "com.nothing.thirdparty.bind_glyphservice"
+            `package` = "com.nothing.thirdparty"
+            component = ComponentName(
                 "com.nothing.thirdparty",
                 "com.nothing.thirdparty.GlyphService"
             )
-        )
-        mContext.bindService(launchService, this.mConnection, GLYPH_C)
+        }
+
+        mContext.bindService(launchService, this.mConnection, Context.BIND_AUTO_CREATE)
     }
 
-    fun unInit() {
+    fun unInit(mContext: Context) {
         mContext.unbindService(this.mConnection)
     }
 
-    fun register(): Boolean {
+    fun register(mContext: Context): Boolean {
         try {
             this.mDevice = Common.DEVICE_22111
-            val key = Common.getAppKey(this.mContext)
+            val key = Common.getAppKey(mContext)
             this.mHasAuthorized = mService!!.registerSDK(key, Common.DEVICE_22111)
         } catch (e: RemoteException) {
             Log.e(TAG, e.message!!)
@@ -65,10 +69,10 @@ class GlyphManager private constructor(private val mContext: Context) {
         return this.mHasAuthorized
     }
 
-    fun register(targetDevice: String): Boolean {
+    fun register(mContext: Context, targetDevice: String): Boolean {
         try {
             this.mDevice = targetDevice
-            val key = Common.getAppKey(this.mContext)
+            val key = Common.getAppKey(mContext)
             this.mHasAuthorized =
                 mService!!.registerSDK(key, targetDevice)
         } catch (e: RemoteException) {
@@ -114,7 +118,7 @@ class GlyphManager private constructor(private val mContext: Context) {
             throw GlyphException("Please use it after service connected.")
         }
         try {
-            stopCurrentTask()
+            runBlocking { stopCurrentTask() }
             mService!!.closeSession()
         } catch (e: RemoteException) {
             Log.d(TAG, e.message!!)
@@ -131,14 +135,14 @@ class GlyphManager private constructor(private val mContext: Context) {
             throw GlyphException("Please use it after service connected.")
         }
         try {
-            stopCurrentTask()
+            runBlocking { stopCurrentTask() }
             mService!!.setFrameColors(colors)
         } catch (e: RemoteException) {
             Log.e(TAG, e.message!!)
         }
     }
 
-    fun turnOff() {
+    suspend fun turnOff() {
         if (!this.mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
@@ -158,7 +162,7 @@ class GlyphManager private constructor(private val mContext: Context) {
         executeFrame(task)
     }
 
-    fun toggle(frame: GlyphFrame) {
+    suspend fun toggle(frame: GlyphFrame) {
         if (!this.mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
@@ -176,7 +180,7 @@ class GlyphManager private constructor(private val mContext: Context) {
         executeFrame(task)
     }
 
-    fun animate(frame: GlyphFrame) {
+    suspend fun animate(frame: GlyphFrame) {
         if (!this.mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
@@ -229,22 +233,22 @@ class GlyphManager private constructor(private val mContext: Context) {
     }
 
     @Throws(GlyphException::class)
-    fun displayProgressAndToggle(frame: GlyphFrame, progress: Int, isReverse: Boolean) {
+    suspend fun displayProgressAndToggle(frame: GlyphFrame, progress: Int, isReverse: Boolean) {
         displayProgress(frame, progress, isReverse, true)
     }
 
     @Throws(GlyphException::class)
-    fun displayProgress(frame: GlyphFrame, progress: Int) {
+    suspend fun displayProgress(frame: GlyphFrame, progress: Int) {
         displayProgress(frame, progress, false, false)
     }
 
     @Throws(GlyphException::class)
-    fun displayProgress(frame: GlyphFrame, progress: Int, isReverse: Boolean) {
+    suspend fun displayProgress(frame: GlyphFrame, progress: Int, isReverse: Boolean) {
         displayProgress(frame, progress, isReverse, false)
     }
 
     @Throws(GlyphException::class)
-    private fun displayProgress(
+    private suspend fun displayProgress(
         frame: GlyphFrame,
         progress: Int,
         isReverse: Boolean,
@@ -262,14 +266,12 @@ class GlyphManager private constructor(private val mContext: Context) {
                 throw GlyphException("Please choose D1_1 while using display progress in 20111.")
             }
             light = GLYPH_D
-        }
-        if (Common.isTargetDevice22111(this.mDevice)) {
+        } else if (Common.isTargetDevice22111(this.mDevice)) {
             if ((channel[Code_22111.C1_1] == 0 && channel[Code_22111.D1_1] == 0) || (channel[Code_22111.C1_1] > 0 && channel[Code_22111.D1_1] > 0)) {
                 throw GlyphException("Please choose C1 or D1 while using display progress in 22111")
             }
             light = if (channel[Code_22111.C1_1] == 0) GLYPH_D else GLYPH_C
-        }
-        if (Common.isTargetDevice23111(this.mDevice)) {
+        } else if (Common.isTargetDevice23111(this.mDevice)) {
             if (channel[Code_23111.C_1] == 0) {
                 throw GlyphException("Please choose C_1 while using display progress in 23111.")
             }
@@ -290,8 +292,7 @@ class GlyphManager private constructor(private val mContext: Context) {
                         start = Code_22111.C1_16
                         end = Code_22111.C1_1
                         length = 16
-                    }
-                    if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
                         sum = progress * 1000
                         start = Code_23111.C_24
                         end = Code_23111.C_1
@@ -303,8 +304,7 @@ class GlyphManager private constructor(private val mContext: Context) {
                     if (Common.isTargetDevice20111(this@GlyphManager.mDevice)) {
                         start = Code_20111.D1_8
                         end = Code_20111.D1_1
-                    }
-                    if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
                         start = Code_22111.D1_8
                         end = Code_22111.D1_1
                     }
@@ -317,8 +317,7 @@ class GlyphManager private constructor(private val mContext: Context) {
                         start = Code_22111.C1_1
                         end = Code_22111.C1_16
                         length = 16
-                    }
-                    if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
                         sum = progress * 1000
                         start = Code_23111.C_1
                         end = Code_23111.C_24
@@ -330,8 +329,7 @@ class GlyphManager private constructor(private val mContext: Context) {
                     if (Common.isTargetDevice20111(this@GlyphManager.mDevice)) {
                         start = Code_20111.D1_1
                         end = Code_20111.D1_8
-                    }
-                    if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
                         start = Code_22111.D1_1
                         end = Code_22111.D1_8
                     }
@@ -404,8 +402,7 @@ class GlyphManager private constructor(private val mContext: Context) {
                     if (this@GlyphManager.hasLight(channel[Code_20111.E1])) {
                         builder.buildChannelE()
                     }
-                }
-                if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+                } else if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
                     if (this@GlyphManager.hasLight(channel[Code_22111.A1])) {
                         builder.buildChannel(Code_22111.A1)
                     }
@@ -433,8 +430,7 @@ class GlyphManager private constructor(private val mContext: Context) {
                     if (this@GlyphManager.hasLight(channel[Code_22111.E1])) {
                         builder.buildChannelE()
                     }
-                }
-                if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
+                } else if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
                     if (this@GlyphManager.hasLight(channel[Code_23111.A])) {
                         builder.buildChannelA()
                     }
@@ -452,18 +448,19 @@ class GlyphManager private constructor(private val mContext: Context) {
         executeFrame(task)
     }
 
-    private fun executeFrame(task: Runnable) {
-        this.mTask = mExecutor.submit(task)
+    private suspend fun executeFrame(task: Runnable) {
+        job = scope.launch {
+            task.run()
+        }
+        job?.join()
     }
 
     private fun hasLight(light: Int): Boolean {
         return light > 0
     }
 
-    private fun stopCurrentTask() {
-        if (this.mTask != null) {
-            mTask!!.cancel(true)
-        }
+    private suspend fun stopCurrentTask() {
+        job?.cancelAndJoin()
     }
 
     private fun pauseAWhile(time: Long) {
@@ -480,18 +477,14 @@ class GlyphManager private constructor(private val mContext: Context) {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             Log.d(TAG, "Service connected")
             this@GlyphManager.mService = IGlyphService.Stub.asInterface(service)
-            if (this@GlyphManager.mCallback != null) {
-                mCallback!!.onServiceConnected(name)
-            }
+            mCallback?.onServiceConnected(name)
         }
 
         // android.content.ServiceConnection
         override fun onServiceDisconnected(name: ComponentName) {
             Log.d(TAG, "Service disconnected")
             mService = null
-            if (mCallback != null) {
-                mCallback!!.onServiceDisconnected(name)
-            }
+            mCallback?.onServiceDisconnected(name)
         }
     }
 
@@ -503,9 +496,9 @@ class GlyphManager private constructor(private val mContext: Context) {
         private const val DEFAULT_MIN_LIGHT = 800
         private const val NO_LIGHT = 0
         private var mInstance: GlyphManager? = null
-        fun getInstance(context: Context): GlyphManager {
+        fun getInstance(): GlyphManager {
             if (mInstance == null) {
-                mInstance = GlyphManager(context)
+                mInstance = GlyphManager()
             }
             return mInstance!!
         }
