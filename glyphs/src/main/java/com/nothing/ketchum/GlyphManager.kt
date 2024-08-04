@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -150,16 +151,15 @@ class GlyphManager {
         stopCurrentTask()
         // from class: com.nothing.ketchum.GlyphManager.1
         // java.lang.Runnable
-        val task = Runnable {
+        executeFrame {
             try {
-                val builder = this@GlyphManager.glyphFrameBuilder
+                val builder = glyphFrameBuilder
                 val emptyFrame = builder.build()
                 mService!!.setFrameColors(emptyFrame.channel)
             } catch (e: RemoteException) {
                 Log.e(TAG, e.message!!)
             }
         }
-        executeFrame(task)
     }
 
     suspend fun toggle(frame: GlyphFrame) {
@@ -170,14 +170,13 @@ class GlyphManager {
         stopCurrentTask()
         // from class: com.nothing.ketchum.GlyphManager.2
         // java.lang.Runnable
-        val task = Runnable {
+        executeFrame {
             try {
                 mService!!.setFrameColors(frame.channel)
             } catch (e: RemoteException) {
                 Log.e(TAG, e.message!!)
             }
         }
-        executeFrame(task)
     }
 
     suspend fun animate(frame: GlyphFrame) {
@@ -188,7 +187,7 @@ class GlyphManager {
         stopCurrentTask()
         // from class: com.nothing.ketchum.GlyphManager.3
         // java.lang.Runnable
-        val task = Runnable {
+        executeFrame {
             var light: Int
             val period = frame.period
             val interval = frame.interval
@@ -215,7 +214,7 @@ class GlyphManager {
                     } catch (e: RemoteException) {
                         Log.e(TAG, e.message!!)
                     }
-                    this@GlyphManager.pauseAWhile(10L)
+                    delay(10L)
                 }
                 val startOff = System.currentTimeMillis()
                 while (System.currentTimeMillis() - startOff < interval) {
@@ -224,12 +223,11 @@ class GlyphManager {
                     } catch (e2: RemoteException) {
                         Log.e(TAG, e2.message!!)
                     }
-                    this@GlyphManager.pauseAWhile(100L)
+                    delay(100L)
                 }
                 cycle += GLYPH_C
             }
         }
-        executeFrame(task)
     }
 
     @Throws(GlyphException::class)
@@ -280,7 +278,7 @@ class GlyphManager {
         val finalLight = light
         // from class: com.nothing.ketchum.GlyphManager.4
         // java.lang.Runnable
-        val task = Runnable {
+        executeFrame {
             var sum = NO_LIGHT
             var start = NO_LIGHT
             var end = NO_LIGHT
@@ -337,7 +335,7 @@ class GlyphManager {
                 }
             }
             if (sum == 0) {
-                return@Runnable
+                return@executeFrame
             }
             val progressLight = sum / DEFAULT_MAX_LIGHT
             val remain = sum % DEFAULT_MAX_LIGHT
@@ -358,11 +356,7 @@ class GlyphManager {
                     i += GLYPH_C
                 }
                 if (end <= start) {
-                    if (remain < DEFAULT_MIN_LIGHT) {
-                        builder.buildChannel(start, DEFAULT_MIN_LIGHT)
-                    } else {
-                        builder.buildChannel(start, remain)
-                    }
+                    builder.buildChannel(start, remain.coerceAtLeast(DEFAULT_MIN_LIGHT))
                 }
             } else {
                 var i2 = NO_LIGHT
@@ -372,11 +366,7 @@ class GlyphManager {
                     i2 += GLYPH_C
                 }
                 if (start <= end) {
-                    if (remain < DEFAULT_MIN_LIGHT) {
-                        builder.buildChannel(start, DEFAULT_MIN_LIGHT)
-                    } else {
-                        builder.buildChannel(start, remain)
-                    }
+                    builder.buildChannel(start, remain.coerceAtLeast(DEFAULT_MIN_LIGHT))
                 }
             }
             if (isToggle) {
@@ -445,12 +435,11 @@ class GlyphManager {
                 Log.e(TAG, e.message!!)
             }
         }
-        executeFrame(task)
     }
 
-    private suspend fun executeFrame(task: Runnable) {
+    private suspend fun executeFrame(task: suspend () -> Unit) {
         job = scope.launch {
-            task.run()
+            task()
         }
         job?.join()
     }
@@ -461,14 +450,6 @@ class GlyphManager {
 
     private suspend fun stopCurrentTask() {
         job?.cancelAndJoin()
-    }
-
-    private fun pauseAWhile(time: Long) {
-        try {
-            Thread.sleep(time)
-        } catch (e: InterruptedException) {
-            Log.e(TAG, e.message!!)
-        }
     }
 
     /* loaded from: KetchumSDK_Community_20240307.jar:com/nothing/ketchum/GlyphManager$RemoteServiceConnection.class */

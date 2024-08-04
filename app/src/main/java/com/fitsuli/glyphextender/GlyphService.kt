@@ -33,8 +33,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.File
 
 private const val SERVICE_CHANNEL_ID = "glyph_extender"
+private const val MIN_DURATION_PROGRESS_MS = 5000
 
 class GlyphService : NotificationListenerService() {
 
@@ -147,21 +149,26 @@ class GlyphService : NotificationListenerService() {
         if (!isGlyphSessionOpen) return
         scope.launch {
             val keySet = sbn.notification.extras.keySet()
-            val extrasData = keySet
-                .joinToString("\n") { key -> "$key: ${sbn.notification.extras[key]}" }
             Timber.d(
-                "onNotificationPosted: ${sbn.packageName}"
-//                        + "\n${sbn.notification}" + "\n${extrasData}"
+                "onNotificationPosted: ${sbn.packageName}" + "\n${sbn.notification}"
             )
 
-            /*
-                        if (sbn.packageName == "ru.yandex.taxi") {
-                            // get car progress from notification and convert it to glyph progress
-                        val carProgress = sbn.notification.extras["car_progress"] as Int
-                        val glyphProgress = carProgress * 100 / 255
-                        val frame = mGM.glyphFrameBuilder.buildChannelA().buildProgress(glyphProgress).build()
-                        }
-            */
+
+            if (sbn.packageName == "ru.yandex.taxi") {
+                val file = File(getExternalFilesDir(null), "notifications.txt")
+                file.parentFile?.mkdirs()
+                val extrasData = keySet
+                    .joinToString("\n") { key -> "$key: ${sbn.notification.extras[key]}" }
+                file.appendText(
+                    "onNotificationPosted: ${sbn.packageName}"
+                            + "\n${sbn.notification}" + "\n${extrasData}\n\n"
+                )
+                // get car progress from notification and convert it to glyph progress
+//                val carProgress = sbn.notification.extras["car_progress"] as Int
+//                val glyphProgress = carProgress * 100 / 255
+//                val frame =
+//                    mGM.glyphFrameBuilder.buildChannelA().buildProgress(glyphProgress).build()
+            }
 
             if (keySet.contains(Notification.EXTRA_MEDIA_SESSION)) {
                 val mediaSessionToken = sbn.getMediaSessionToken() ?: return@launch
@@ -211,6 +218,11 @@ class GlyphService : NotificationListenerService() {
         }
         return scope.launch {
             Timber.d("Media playback job started")
+            if (duration <= MIN_DURATION_PROGRESS_MS) {
+                Timber.d("Media playback duration is too short: $duration")
+                return@launch
+            }
+
             val tick = (duration / 100).coerceIn(300L..12000L) // 1% of duration or 12s
             Timber.d("Media playback duration: $duration, tick: $tick")
 
