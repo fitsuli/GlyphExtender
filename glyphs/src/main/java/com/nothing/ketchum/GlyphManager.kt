@@ -23,7 +23,7 @@ import kotlinx.coroutines.runBlocking
 /* loaded from: KetchumSDK_Community_20240307.jar:com/nothing/ketchum/GlyphManager.class */
 class GlyphManager {
     private var mService: IGlyphService? = null
-    private var mCallback: Callback? = null
+    private var mCallback: GlyphCallback? = null
     private val mConnection = RemoteServiceConnection()
     private var mHasAuthorized = false
     private val isTaskOn = false
@@ -31,15 +31,8 @@ class GlyphManager {
     private var mDevice: String? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    /* loaded from: KetchumSDK_Community_20240307.jar:com/nothing/ketchum/GlyphManager$Callback.class */
-    interface Callback {
-        fun onServiceConnected(componentName: ComponentName)
-
-        fun onServiceDisconnected(componentName: ComponentName)
-    }
-
-    fun init(mContext: Context, callback: Callback?) {
-        this.mCallback = callback
+    fun init(mContext: Context, callback: GlyphCallback?) {
+        mCallback = callback
         val launchService = Intent().apply {
             action = "com.nothing.thirdparty.bind_glyphservice"
             `package` = "com.nothing.thirdparty"
@@ -49,56 +42,55 @@ class GlyphManager {
             )
         }
 
-        mContext.bindService(launchService, this.mConnection, Context.BIND_AUTO_CREATE)
+        mContext.bindService(launchService, mConnection, Context.BIND_AUTO_CREATE)
     }
 
     fun unInit(mContext: Context) {
-        mContext.unbindService(this.mConnection)
+        mContext.unbindService(mConnection)
     }
 
     fun register(mContext: Context): Boolean {
         try {
-            this.mDevice = Common.DEVICE_22111
+            mDevice = Common.DEVICE_22111
             val key = Common.getAppKey(mContext)
-            this.mHasAuthorized = mService!!.registerSDK(key, Common.DEVICE_22111)
+            mHasAuthorized = mService!!.registerSDK(key, Common.DEVICE_22111)
         } catch (e: RemoteException) {
             Log.e(TAG, e.message!!)
         } catch (e2: Exception) {
             Log.e(TAG, e2.message, e2)
         }
         Log.w(TAG, "You are targeting " + Common.DEVICE_22111 + " as your device.")
-        return this.mHasAuthorized
+        return mHasAuthorized
     }
 
     fun register(mContext: Context, targetDevice: String): Boolean {
         try {
-            this.mDevice = targetDevice
+            mDevice = targetDevice
             val key = Common.getAppKey(mContext)
-            this.mHasAuthorized =
-                mService!!.registerSDK(key, targetDevice)
+            mHasAuthorized = mService!!.registerSDK(key, targetDevice)
         } catch (e: RemoteException) {
             Log.e(TAG, e.message!!)
         } catch (e2: Exception) {
             Log.e(TAG, e2.message, e2)
         }
         Log.w(TAG, "You are targeting $targetDevice as your device.")
-        return this.mHasAuthorized
+        return mHasAuthorized
     }
 
     val glyphFrameBuilder: GlyphFrame.Builder
         get() {
-            if (this.mDevice == null) {
+            if (mDevice == null) {
                 return GlyphFrame.Builder()
             }
-            return GlyphFrame.Builder(this.mDevice)
+            return GlyphFrame.Builder(mDevice)
         }
 
     @Throws(GlyphException::class)
     fun openSession() {
-        if (!this.mHasAuthorized) {
+        if (!mHasAuthorized) {
             Log.d(TAG, "Non registed")
         } else {
-            if (this.mService == null) {
+            if (mService == null) {
                 throw GlyphException("Please use it after service connected.")
             }
             try {
@@ -111,11 +103,11 @@ class GlyphManager {
 
     @Throws(GlyphException::class)
     fun closeSession() {
-        if (!this.mHasAuthorized) {
+        if (!mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
         }
-        if (this.mService == null) {
+        if (mService == null) {
             throw GlyphException("Please use it after service connected.")
         }
         try {
@@ -128,11 +120,11 @@ class GlyphManager {
 
     @Throws(GlyphException::class)
     fun setFrameColors(colors: IntArray?) {
-        if (!this.mHasAuthorized) {
+        if (!mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
         }
-        if (this.mService == null) {
+        if (mService == null) {
             throw GlyphException("Please use it after service connected.")
         }
         try {
@@ -144,7 +136,7 @@ class GlyphManager {
     }
 
     suspend fun turnOff() {
-        if (!this.mHasAuthorized) {
+        if (!mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
         }
@@ -163,7 +155,7 @@ class GlyphManager {
     }
 
     suspend fun toggle(frame: GlyphFrame) {
-        if (!this.mHasAuthorized) {
+        if (!mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
         }
@@ -180,7 +172,7 @@ class GlyphManager {
     }
 
     suspend fun animate(frame: GlyphFrame) {
-        if (!this.mHasAuthorized) {
+        if (!mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
         }
@@ -192,8 +184,7 @@ class GlyphManager {
             val period = frame.period
             val interval = frame.interval
             val emptyFrame = GlyphFrame.Builder().build()
-            var cycle = NO_LIGHT
-            while (cycle < frame.cycles) {
+            repeat(frame.cycles) {
                 val startOn = System.currentTimeMillis()
                 while (System.currentTimeMillis() - startOn < period) {
                     try {
@@ -203,12 +194,10 @@ class GlyphManager {
                         } else {
                             DEFAULT_MAX_LIGHT - ((DEFAULT_MAX_LIGHT / (period / GLYPH_D)) * (((System.currentTimeMillis() - startOn) - (period / GLYPH_D)).toInt()))
                         }
-                        var i = NO_LIGHT
-                        while (i < colors.size) {
+                        for (i in colors.indices) {
                             if (colors[i] != 0) {
                                 colors[i] = light
                             }
-                            i += GLYPH_C
                         }
                         mService!!.setFrameColors(colors)
                     } catch (e: RemoteException) {
@@ -225,7 +214,6 @@ class GlyphManager {
                     }
                     delay(100L)
                 }
-                cycle += GLYPH_C
             }
         }
     }
@@ -252,30 +240,29 @@ class GlyphManager {
         isReverse: Boolean,
         isToggle: Boolean,
     ) {
-        if (!this.mHasAuthorized) {
+        if (!mHasAuthorized) {
             Log.d(TAG, "Non registed")
             return
         }
         stopCurrentTask()
         val channel = frame.channel
         var light = NO_LIGHT
-        if (Common.isTargetDevice20111(this.mDevice)) {
+        if (Common.isTargetDevice20111(mDevice)) {
             if (channel[Code_20111.D1_1] == 0) {
                 throw GlyphException("Please choose D1_1 while using display progress in 20111.")
             }
             light = GLYPH_D
-        } else if (Common.isTargetDevice22111(this.mDevice)) {
+        } else if (Common.isTargetDevice22111(mDevice)) {
             if ((channel[Code_22111.C1_1] == 0 && channel[Code_22111.D1_1] == 0) || (channel[Code_22111.C1_1] > 0 && channel[Code_22111.D1_1] > 0)) {
                 throw GlyphException("Please choose C1 or D1 while using display progress in 22111")
             }
             light = if (channel[Code_22111.C1_1] == 0) GLYPH_D else GLYPH_C
-        } else if (Common.isTargetDevice23111(this.mDevice)) {
+        } else if (Common.isTargetDevice23111(mDevice)) {
             if (channel[Code_23111.C_1] == 0) {
                 throw GlyphException("Please choose C_1 while using display progress in 23111.")
             }
             light = GLYPH_C
         }
-        val finalLight = light
         // from class: com.nothing.ketchum.GlyphManager.4
         // java.lang.Runnable
         executeFrame {
@@ -284,50 +271,48 @@ class GlyphManager {
             var end = NO_LIGHT
             var length = NO_LIGHT
             if (isReverse) {
-                if (finalLight == GLYPH_C) {
-                    if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+                if (light == GLYPH_C) {
+                    if (Common.isTargetDevice22111(mDevice)) {
                         sum = progress * 700
                         start = Code_22111.C1_16
                         end = Code_22111.C1_1
                         length = 16
-                    } else if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice23111(mDevice)) {
                         sum = progress * 1000
                         start = Code_23111.C_24
                         end = Code_23111.C_1
                         length = 24
                     }
-                }
-                if (finalLight == GLYPH_D) {
+                } else if (light == GLYPH_D) {
                     sum = progress * 400
-                    if (Common.isTargetDevice20111(this@GlyphManager.mDevice)) {
+                    if (Common.isTargetDevice20111(mDevice)) {
                         start = Code_20111.D1_8
                         end = Code_20111.D1_1
-                    } else if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice22111(mDevice)) {
                         start = Code_22111.D1_8
                         end = Code_22111.D1_1
                     }
                     length = 8
                 }
             } else {
-                if (finalLight == GLYPH_C) {
-                    if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+                if (light == GLYPH_C) {
+                    if (Common.isTargetDevice22111(mDevice)) {
                         sum = progress * 700
                         start = Code_22111.C1_1
                         end = Code_22111.C1_16
                         length = 16
-                    } else if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice23111(mDevice)) {
                         sum = progress * 1000
                         start = Code_23111.C_1
                         end = Code_23111.C_24
                         length = 24
                     }
-                }
-                if (finalLight == GLYPH_D) {
+                } else if (light == GLYPH_D) {
                     sum = progress * 400
-                    if (Common.isTargetDevice20111(this@GlyphManager.mDevice)) {
+                    if (Common.isTargetDevice20111(mDevice)) {
                         start = Code_20111.D1_1
                         end = Code_20111.D1_8
-                    } else if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+                    } else if (Common.isTargetDevice22111(mDevice)) {
                         start = Code_22111.D1_1
                         end = Code_22111.D1_8
                     }
@@ -339,11 +324,11 @@ class GlyphManager {
             }
             val progressLight = sum / DEFAULT_MAX_LIGHT
             val remain = sum % DEFAULT_MAX_LIGHT
-            val builder = if (Common.isTargetDevice20111(this@GlyphManager.mDevice)) {
+            val builder = if (Common.isTargetDevice20111(mDevice)) {
                 GlyphFrame.Builder(Common.DEVICE_20111)
-            } else if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
+            } else if (Common.isTargetDevice22111(mDevice)) {
                 GlyphFrame.Builder(Common.DEVICE_22111)
-            } else if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
+            } else if (Common.isTargetDevice23111(mDevice)) {
                 GlyphFrame.Builder(Common.DEVICE_23111)
             } else {
                 GlyphFrame.Builder()
@@ -370,61 +355,61 @@ class GlyphManager {
                 }
             }
             if (isToggle) {
-                if (Common.isTargetDevice20111(this@GlyphManager.mDevice)) {
-                    if (this@GlyphManager.hasLight(channel[Code_20111.A1])) {
+                if (Common.isTargetDevice20111(mDevice)) {
+                    if (hasLight(channel[Code_20111.A1])) {
                         builder.buildChannelA()
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_20111.B1])) {
+                    if (hasLight(channel[Code_20111.B1])) {
                         builder.buildChannelB()
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_20111.C1])) {
+                    if (hasLight(channel[Code_20111.C1])) {
                         builder.buildChannel(Code_20111.C1)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_20111.C2])) {
+                    if (hasLight(channel[Code_20111.C2])) {
                         builder.buildChannel(Code_20111.C2)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_20111.C3])) {
+                    if (hasLight(channel[Code_20111.C3])) {
                         builder.buildChannel(Code_20111.C3)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_20111.C4])) {
+                    if (hasLight(channel[Code_20111.C4])) {
                         builder.buildChannel(Code_20111.C4)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_20111.E1])) {
+                    if (hasLight(channel[Code_20111.E1])) {
                         builder.buildChannelE()
                     }
-                } else if (Common.isTargetDevice22111(this@GlyphManager.mDevice)) {
-                    if (this@GlyphManager.hasLight(channel[Code_22111.A1])) {
+                } else if (Common.isTargetDevice22111(mDevice)) {
+                    if (hasLight(channel[Code_22111.A1])) {
                         builder.buildChannel(Code_22111.A1)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.A2])) {
+                    if (hasLight(channel[Code_22111.A2])) {
                         builder.buildChannel(Code_22111.A2)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.B1])) {
+                    if (hasLight(channel[Code_22111.B1])) {
                         builder.buildChannelB()
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.C2])) {
+                    if (hasLight(channel[Code_22111.C2])) {
                         builder.buildChannel(Code_22111.C2)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.C3])) {
+                    if (hasLight(channel[Code_22111.C3])) {
                         builder.buildChannel(Code_22111.C3)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.C4])) {
+                    if (hasLight(channel[Code_22111.C4])) {
                         builder.buildChannel(Code_22111.C4)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.C5])) {
+                    if (hasLight(channel[Code_22111.C5])) {
                         builder.buildChannel(Code_22111.C5)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.C6])) {
+                    if (hasLight(channel[Code_22111.C6])) {
                         builder.buildChannel(Code_22111.C6)
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_22111.E1])) {
+                    if (hasLight(channel[Code_22111.E1])) {
                         builder.buildChannelE()
                     }
-                } else if (Common.isTargetDevice23111(this@GlyphManager.mDevice)) {
-                    if (this@GlyphManager.hasLight(channel[Code_23111.A])) {
+                } else if (Common.isTargetDevice23111(mDevice)) {
+                    if (hasLight(channel[Code_23111.A])) {
                         builder.buildChannelA()
                     }
-                    if (this@GlyphManager.hasLight(channel[Code_23111.B])) {
+                    if (hasLight(channel[Code_23111.B])) {
                         builder.buildChannelB()
                     }
                 }
@@ -457,7 +442,7 @@ class GlyphManager {
         // android.content.ServiceConnection
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             Log.d(TAG, "Service connected")
-            this@GlyphManager.mService = IGlyphService.Stub.asInterface(service)
+            mService = IGlyphService.Stub.asInterface(service)
             mCallback?.onServiceConnected(name)
         }
 

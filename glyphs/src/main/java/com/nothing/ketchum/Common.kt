@@ -11,9 +11,9 @@ object Common {
     const val sDKVersion: Int = 140101
     private val mVerifyTragetDevice: ArrayList<*> =
         ArrayList<Any?>(mutableListOf<String?>("A063", "A065", "AIN065"))
-    var DEVICE_20111: String = "A063"
-    var DEVICE_22111: String = "A065"
-    var DEVICE_23111: String = "A142"
+    const val DEVICE_20111: String = "A063"
+    const val DEVICE_22111: String = "A065"
+    const val DEVICE_23111: String = "A142"
 
     fun is20111(): Boolean {
         return Glyph.DEVICE_20111 == Build.MODEL

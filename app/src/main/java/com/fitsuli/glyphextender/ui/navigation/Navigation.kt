@@ -7,6 +7,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.fitsuli.glyphextender.ui.screens.home.HomeScreen
+import com.fitsuli.glyphextender.ui.screens.notifications.NotificationsScreen
 import soup.compose.material.motion.animation.materialSharedAxisYIn
 import soup.compose.material.motion.animation.materialSharedAxisYOut
 import soup.compose.material.motion.animation.rememberSlideDistance
@@ -46,7 +47,7 @@ fun Navigation(
 //            ProgressScreen()
         }
         composable<Destinations.Notifications> {
-//            NotificationsScreen()
+            NotificationsScreen()
         }
         composable<Destinations.Settings> {
 //            SettingsScreen()

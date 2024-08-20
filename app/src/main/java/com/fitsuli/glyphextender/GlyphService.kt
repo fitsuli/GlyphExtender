@@ -19,10 +19,13 @@ import androidx.core.app.NotificationManagerCompat
 import com.fitsuli.glyphextender.extensions.animateProgressBackToStop
 import com.fitsuli.glyphextender.extensions.showPauseBlink
 import com.fitsuli.glyphextender.utils.getMediaSessionToken
+import com.fitsuli.glyphextender.utils.getTitleAny
+import com.fitsuli.glyphextender.utils.prefs.NotificationItem
 import com.nothing.ketchum.Common
 import com.nothing.ketchum.Glyph.Code_20111
 import com.nothing.ketchum.Glyph.Code_22111
 import com.nothing.ketchum.Glyph.Code_23111
+import com.nothing.ketchum.GlyphCallback
 import com.nothing.ketchum.GlyphException
 import com.nothing.ketchum.GlyphManager
 import kotlinx.coroutines.CoroutineScope
@@ -30,10 +33,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import java.io.File
+
 
 private const val SERVICE_CHANNEL_ID = "glyph_extender"
 private const val MIN_DURATION_PROGRESS_MS = 5000
@@ -42,33 +54,103 @@ class GlyphService : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.Default)
 
+    private val notificationPreferences = App.appModule.notificationPrefsRepo
+
     private var isGlyphSessionOpen = false
+    private val serviceConnectionState =
+        MutableStateFlow<ServiceConnectionState>(ServiceConnectionState.NotConnected)
     private val mGM: GlyphManager = GlyphManager.getInstance()
-    private var mCallback: GlyphManager.Callback = object : GlyphManager.Callback {
+    private var mCallback: GlyphCallback = object : GlyphCallback {
         override fun onServiceConnected(componentName: ComponentName) {
+            serviceConnectionState.update { ServiceConnectionState.Connected }
+        }
+
+        override fun onServiceDisconnected(componentName: ComponentName) {
+            serviceConnectionState.update { ServiceConnectionState.NotConnected }
+        }
+    }
+
+    private val serviceConnectedFlow = serviceConnectionState
+        .onEach { connectServiceWhenNotConnected() }
+        .mapNotNull { it as? ServiceConnectionState.Connected }
+        .onEach { Timber.d("serviceConnectionFlow: connected") }
+        .take(1)
+        .onEach {
             when {
                 Common.is20111() -> mGM.register(applicationContext, Common.DEVICE_20111)
                 Common.is22111() -> mGM.register(applicationContext, Common.DEVICE_22111)
                 Common.is23111() -> mGM.register(applicationContext, Common.DEVICE_23111)
-                else -> return
+                else -> return@onEach
             }
 
             try {
                 mGM.openSession()
-                isGlyphSessionOpen = true
                 Timber.d("onServiceConnected!")
             } catch (e: GlyphException) {
                 Timber.e(e)
             }
         }
 
-        override fun onServiceDisconnected(componentName: ComponentName) {
-            mGM.closeSession()
+    private suspend fun connectServiceAndAwait() {
+        if (serviceConnectionState.value is ServiceConnectionState.Connected) {
+            Timber.d("connectServiceAndAwait: already connected")
+            return
         }
+
+        serviceConnectedFlow.first()
     }
+
+    private val serviceDisconnectedFlow = serviceConnectionState
+        .onEach { state ->
+            if (state is ServiceConnectionState.Connected) {
+                mGM.closeSession()
+                if (serviceConnectionState.compareAndSet(
+                        ServiceConnectionState.Connected,
+                        ServiceConnectionState.NotConnected
+                    )
+                ) {
+                    disconnectService()
+                }
+            }
+        }
+        .mapNotNull { it as? ServiceConnectionState.NotConnected }
+        .onEach { Timber.d("serviceConnectionFlow: onServiceDisconnected") }
+        .take(1)
+
+    private suspend fun disconnectServiceAndAwait() = serviceDisconnectedFlow.first()
+
 
     override fun onBind(intent: Intent): IBinder? {
         return super.onBind(intent)
+    }
+
+    private fun connectService() {
+        Timber.d("reconnectServiceIfNecessary: glyph session is not open, reconnecting...")
+        runCatching {
+            mGM.init(applicationContext, mCallback)
+        }.onFailure {
+            Timber.e(it)
+        }
+    }
+
+    private fun disconnectService() {
+        Timber.d("disconnectService: glyph session is open, disconnecting...")
+        runCatching {
+            mGM.unInit(applicationContext)
+        }.onFailure {
+            Timber.e(it)
+        }
+    }
+
+    private fun connectServiceWhenNotConnected() {
+        Timber.d("connectServiceWhenNotConnected: ${serviceConnectionState.value}")
+        if (serviceConnectionState.compareAndSet(
+                ServiceConnectionState.NotConnected,
+                ServiceConnectionState.Connecting
+            )
+        ) {
+            connectService()
+        }
     }
 
     private suspend fun A1BlockExample() {
@@ -91,12 +173,10 @@ class GlyphService : NotificationListenerService() {
 
     override fun onDestroy() {
         try {
-            mGM.closeSession()
-            isGlyphSessionOpen = false
+            runBlocking { disconnectServiceAndAwait() }
         } catch (e: GlyphException) {
             Timber.e(e)
         }
-        mGM.unInit(applicationContext)
         super.onDestroy()
     }
 
@@ -126,7 +206,7 @@ class GlyphService : NotificationListenerService() {
             .setContentIntent(pendingIntent)
             .build()
         startForeground(1, notification)
-        mGM.init(applicationContext, mCallback)
+        notificationListenerFlow.launchIn(scope)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -139,50 +219,118 @@ class GlyphService : NotificationListenerService() {
     private var currentPackageName: String? = null
     private var currentMediaDurationMs: Long = 0
 
+    private val notificationQueue = MutableStateFlow<List<StatusBarNotification>>(emptyList())
     private var lastMediaPlaybackState: Int = PlaybackState.STATE_NONE
     private val glyphFrameC = mGM.glyphFrameBuilder.buildChannelC().build()
 
     private var progressJob: Job? = null
+    private val allowedYandexChannelIds = setOf("order", "order_low")
+    private var taxiActivityMaxProgress: Int? = null
+
+    private val notificationListenerFlow = notificationQueue
+        .mapNotNull { it.firstOrNull() }
+        .onEach { Timber.d("notificationListenerFlow: ${it.packageName}") }
+        .onEach { processStatusBarNotification(it) }
+        .onEach { notificationQueue.update { it.drop(1) } }
+
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         super.onNotificationPosted(sbn)
-        if (!isGlyphSessionOpen) return
         scope.launch {
-            val keySet = sbn.notification.extras.keySet()
+            notificationQueue.update { it + sbn }
+        }
+    }
+
+    private suspend fun processStatusBarNotification(sbn: StatusBarNotification) {
+        val extras = sbn.notification.extras ?: return
+        val extrasData = extras.keySet().joinToString("\n") { key ->
+            "$key: ${extras[key]}"
+        }
+        Timber.d(
+            "onNotificationPosted: ${sbn.packageName}" + "\n${sbn.notification}"
+            //                        + "\n$extrasData"
+        )
+        val notificationItem = NotificationItem(
+            id = sbn.id,
+            title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
+            text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString(),
+            date = sbn.postTime,
+        )
+
+        notificationPreferences.addNotification(notificationItem)
+
+        if (sbn.packageName == "ru.yandex.taxi" && sbn.notification.channelId in allowedYandexChannelIds) {
+            val file = File(getExternalFilesDir(null), "notifications.txt").apply {
+                parentFile?.mkdirs()
+            }
             Timber.d(
-                "onNotificationPosted: ${sbn.packageName}" + "\n${sbn.notification}"
+                "onNotificationPosted: ${sbn.packageName}\n${sbn.notification}\n${extrasData}\n\n"
+                    .also { file.appendText(it) }
             )
 
-
-            if (sbn.packageName == "ru.yandex.taxi") {
-                val file = File(getExternalFilesDir(null), "notifications.txt")
-                file.parentFile?.mkdirs()
-                val extrasData = keySet
-                    .joinToString("\n") { key -> "$key: ${sbn.notification.extras[key]}" }
-                file.appendText(
-                    "onNotificationPosted: ${sbn.packageName}"
-                            + "\n${sbn.notification}" + "\n${extrasData}\n\n"
+            if (!extras.containsKey("android.contains.customView")) {
+                return
+            }
+            Timber.d(
+                "Custom view found in Yandex notification! It's likely a progress bar, so attempt to parse the text\n"
+                    .also { file.appendText(it) }
+            )
+            val notificationText = extras.getTitleAny() ?: return
+            val minutesLeft = notificationText.filter { it.isDigit() }.toIntOrNull()
+            if (minutesLeft == null) {
+                Timber.d(
+                    "Taxi arrived or unable to parse the minutes left: '$notificationText' \n"
+                        .also { file.appendText(it) }
                 )
-                // get car progress from notification and convert it to glyph progress
-//                val carProgress = sbn.notification.extras["car_progress"] as Int
-//                val glyphProgress = carProgress * 100 / 255
-//                val frame =
-//                    mGM.glyphFrameBuilder.buildChannelA().buildProgress(glyphProgress).build()
+                connectServiceAndAwait()
+                mGM.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+                currentProgress = 0
+                taxiActivityMaxProgress = null
+                disconnectServiceAndAwait()
+                return
             }
 
-            if (keySet.contains(Notification.EXTRA_MEDIA_SESSION)) {
-                val mediaSessionToken = sbn.getMediaSessionToken() ?: return@launch
-                updateMediaSession(
-                    packageName = sbn.packageName,
-                    token = mediaSessionToken
-                )
+            if (taxiActivityMaxProgress == null && minutesLeft > 0) {
+                // first time we see the notification with minutes left
+                taxiActivityMaxProgress = minutesLeft
             }
+            val progress =
+                taxiActivityMaxProgress?.let { (minutesLeft * 100 / it).coerceIn(0, 100) }
+                    ?: return
+            currentProgress = 100 - progress
+            Timber.d(
+                "Taxi activity progress: $progress, real progress: $currentProgress"
+                    .also { file.appendText(it) }
+            )
+            connectServiceAndAwait()
+            mGM.displayProgress(glyphFrameC, currentProgress)
+            return
+        }
+
+        // handle simple notification progress
+        val progress = extras.getInt(Notification.EXTRA_PROGRESS)
+        val maxProgress = extras.getInt(Notification.EXTRA_PROGRESS_MAX)
+        if (progress != 0 && maxProgress != 0) {
+            currentPackageName = sbn.packageName
+            connectServiceAndAwait()
+            val glyphProgress = (progress * 100 / maxProgress).coerceIn(0, 100)
+            Timber.d("Progress: $progress, max: $maxProgress, final glyphProgress: $glyphProgress")
+            mGM.displayProgress(glyphFrameC, glyphProgress)
+            return
+        }
+
+        if (extras.containsKey(Notification.EXTRA_MEDIA_SESSION)) {
+            connectServiceAndAwait()
+            val mediaSessionToken = sbn.getMediaSessionToken() ?: return
+            updateMediaSession(
+                packageName = sbn.packageName,
+                token = mediaSessionToken
+            )
         }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         super.onNotificationRemoved(sbn)
-        if (!isGlyphSessionOpen) return
 //        val keySet = sbn.notification.extras.keySet()
 //        val extrasData = keySet
 //            .joinToString("\n") { key -> "$key: ${sbn.notification.extras[key]}" }
@@ -190,19 +338,21 @@ class GlyphService : NotificationListenerService() {
         scope.launch {
             // current media session is removed
             if (sbn.packageName == currentPackageName) {
+                connectServiceAndAwait()
+                progressJob?.cancelAndJoin()
                 cleanupMediaSession()
                 mGM.animateProgressBackToStop(glyphFrameC, from = currentProgress)
-//                mGM.turnOff()
+                disconnectServiceAndAwait()
             }
         }
     }
 
     private suspend fun updateMediaSession(token: MediaSession.Token, packageName: String) {
         Timber.d("Updating media session with token: $token")
+        progressJob?.cancelAndJoin()
         currentPackageName = packageName
         currentMediaToken = token
         currentMediaController = MediaController(this@GlyphService, token)
-        progressJob?.cancelAndJoin()
         progressJob = startMediaNotificationProgress()
     }
 
@@ -234,16 +384,23 @@ class GlyphService : NotificationListenerService() {
                 delay(tick)
             }
 
-            Timber.d("Media playback progress coroutine finishing")
-//            mGM.animateProgressBackToStop(glyphFrameC, lastProgress)
+            Timber.d(
+                "Media playback progress finishing, last progress: ${currentProgress}\n"
+                        + "Cleaning up media session and waiting for a few seconds to disconnect"
+            )
             cleanupMediaSession()
+            delay(5000)
+            if (isActive) {
+                mGM.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+                disconnectServiceAndAwait()
+                Timber.d("Media playback job finished, glyph session closed")
+            }
         }
     }
 
     private fun cleanupMediaSession() {
         Timber.d("Cleaning up media session!")
         currentMediaToken = null
-        progressJob = null
         currentMediaController = null
         currentPackageName = null
         currentMediaDurationMs = 0
@@ -277,31 +434,12 @@ class GlyphService : NotificationListenerService() {
                 false to progress
             }
 
-            PlaybackState.STATE_SKIPPING_TO_NEXT, PlaybackState.STATE_SKIPPING_TO_PREVIOUS, PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM, PlaybackState.STATE_PAUSED, PlaybackState.STATE_STOPPED, PlaybackState.STATE_NONE -> {
-                handleNonPlayingStates(state = state, progress = progress)
+            PlaybackState.STATE_PAUSED -> {
+                mGM.showPauseBlink()
                 false to progress
             }
 
-            else -> true to progress
+            else -> false to progress
         }.also { lastMediaPlaybackState = state }
-    }
-
-    private suspend fun handleNonPlayingStates(state: Int, progress: Int) {
-        when (state) {
-            PlaybackState.STATE_PAUSED -> mGM.showPauseBlink()
-            PlaybackState.STATE_SKIPPING_TO_NEXT -> {
-//                mGM.animateProgressForward(glyphFrameC, to = 100)
-            }
-
-            // just quit and it will animate back to stop in the outer loop
-            PlaybackState.STATE_SKIPPING_TO_PREVIOUS, PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM -> {
-//                mGM.animateProgressBackToStop(glyphFrameC, from = progress)
-            }
-
-            PlaybackState.STATE_STOPPED, PlaybackState.STATE_NONE -> {
-//                mGM.animateProgressBackToStop(glyphFrameC, from = progress)
-            }
-        }
-        Timber.d("Handled non-playing media playback state: $state")
     }
 }

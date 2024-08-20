@@ -1,6 +1,8 @@
 package com.fitsuli.glyphextender
 
 import android.app.Application
+import com.fitsuli.glyphextender.di.AppModule
+import com.fitsuli.glyphextender.di.AppModuleImpl
 import timber.log.Timber
 
 /**
@@ -9,8 +11,13 @@ import timber.log.Timber
 class App: Application() {
     override fun onCreate() {
         super.onCreate()
+        appModule = AppModuleImpl(appContext = this)
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
+    }
+
+    companion object {
+        lateinit var appModule: AppModule
     }
 }

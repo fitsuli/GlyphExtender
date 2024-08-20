@@ -29,15 +29,23 @@ suspend fun GlyphManager.animateProgressForward(frame: GlyphFrame, to: Int) {
 
 suspend fun GlyphManager.showPauseBlink() {
     Timber.d("Media playback show Pause blink!")
+    /*
+        val frame = glyphFrameBuilder.run {
+            if (Common.is22111()) {
+                buildChannel(Code_22111.C2)
+            } else this
+        }
+            .buildCycles(1)
+            .buildInterval(750)
+            .buildPeriod(1000)
+            .build()
+    */
+
     val frame = glyphFrameBuilder.run {
         if (Common.is22111()) {
             buildChannel(Code_22111.C2)
         } else this
-    }
-        .buildCycles(1)
-        .buildInterval(750)
-        .buildPeriod(1000)
-        .build()
+    }.build()
 
-    animate(frame)
+    toggle(frame)
 }

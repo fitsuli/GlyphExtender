@@ -75,35 +75,35 @@ class GlyphFrame private constructor(builder: Builder) {
         }
 
         fun buildChannelA(): Builder {
-            if (Common.isTargetDevice20111(this.mDevice)) {
+            if (Common.isTargetDevice20111(mDevice)) {
                 channel[Code_20111.A1] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(mDevice)) {
                 channel[Code_22111.A1] = DEFAULT_LIGHT
                 channel[Code_22111.A2] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice23111(this.mDevice)) {
+            } else if (Common.isTargetDevice23111(mDevice)) {
                 channel[Code_23111.A] = DEFAULT_LIGHT
             }
             return this
         }
 
         fun buildChannelB(): Builder {
-            if (Common.isTargetDevice20111(this.mDevice)) {
+            if (Common.isTargetDevice20111(mDevice)) {
                 channel[Code_20111.B1] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(mDevice)) {
                 channel[Code_22111.B1] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice23111(this.mDevice)) {
+            } else if (Common.isTargetDevice23111(mDevice)) {
                 channel[Code_23111.B] = DEFAULT_LIGHT
             }
             return this
         }
 
         fun buildChannelC(): Builder {
-            if (Common.isTargetDevice20111(this.mDevice)) {
+            if (Common.isTargetDevice20111(mDevice)) {
                 channel[Code_20111.C1] = DEFAULT_LIGHT
                 channel[Code_20111.C2] = DEFAULT_LIGHT
                 channel[Code_20111.C3] = DEFAULT_LIGHT
                 channel[Code_20111.C4] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(mDevice)) {
                 channel[Code_22111.C1_1] = DEFAULT_LIGHT
                 channel[Code_22111.C1_2] = DEFAULT_LIGHT
                 channel[Code_22111.C1_3] = DEFAULT_LIGHT
@@ -125,7 +125,7 @@ class GlyphFrame private constructor(builder: Builder) {
                 channel[Code_22111.C4] = DEFAULT_LIGHT
                 channel[Code_22111.C5] = DEFAULT_LIGHT
                 channel[Code_22111.C6] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice23111(this.mDevice)) {
+            } else if (Common.isTargetDevice23111(mDevice)) {
                 channel[Code_23111.C_1] = DEFAULT_LIGHT
                 channel[Code_23111.C_2] = DEFAULT_LIGHT
                 channel[Code_23111.C_3] = DEFAULT_LIGHT
@@ -155,7 +155,7 @@ class GlyphFrame private constructor(builder: Builder) {
         }
 
         fun buildChannelD(): Builder {
-            if (Common.isTargetDevice20111(this.mDevice)) {
+            if (Common.isTargetDevice20111(mDevice)) {
                 channel[Code_20111.D1_1] = DEFAULT_LIGHT
                 channel[Code_20111.D1_2] = DEFAULT_LIGHT
                 channel[Code_20111.D1_3] = DEFAULT_LIGHT
@@ -164,7 +164,7 @@ class GlyphFrame private constructor(builder: Builder) {
                 channel[Code_20111.D1_6] = DEFAULT_LIGHT
                 channel[Code_20111.D1_7] = DEFAULT_LIGHT
                 channel[Code_20111.D1_8] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(mDevice)) {
                 channel[Code_22111.D1_1] = DEFAULT_LIGHT
                 channel[Code_22111.D1_2] = DEFAULT_LIGHT
                 channel[Code_22111.D1_3] = DEFAULT_LIGHT
@@ -178,9 +178,9 @@ class GlyphFrame private constructor(builder: Builder) {
         }
 
         fun buildChannelE(): Builder {
-            if (Common.isTargetDevice20111(this.mDevice)) {
+            if (Common.isTargetDevice20111(mDevice)) {
                 channel[Code_20111.E1] = DEFAULT_LIGHT
-            } else if (Common.isTargetDevice22111(this.mDevice)) {
+            } else if (Common.isTargetDevice22111(mDevice)) {
                 channel[Code_22111.E1] = DEFAULT_LIGHT
             }
             return this
