@@ -63,13 +63,13 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     implementation(libs.material.motion.compose.core)
-    implementation(libs.androidx.material.icons.extended)
+//    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material3.window.size)
     implementation(libs.accompanist.permissions)
 
     debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
+//    debugImplementation(libs.androidx.ui.test.manifest)
 
 //    implementation(libs.libsu.core)
     implementation(libs.kotlinx.serialization.json)

@@ -3,21 +3,17 @@ package com.fitsuli.glyphextender.ui.screens.home
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.core.app.NotificationManagerCompat
 import com.fitsuli.glyphextender.BuildConfig
 import com.fitsuli.glyphextender.GlyphService
+import com.fitsuli.glyphextender.R
+import com.fitsuli.glyphextender.ui.components.SimpleScaffold
 import com.nothing.ketchum.Common
 import com.nothing.ketchum.Glyph.Code_22111
 import com.nothing.ketchum.GlyphManager
@@ -33,16 +29,8 @@ private val mGM: GlyphManager by lazy {
 
 @Composable
 fun HomeScreen() {
-    TestUi()
-}
-
-@Composable
-private fun TestUi() {
-    Column(
-        modifier = Modifier
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-            .systemBarsPadding()
+    SimpleScaffold(
+        headerText = stringResource(id = R.string.home),
     ) {
         val scope = rememberCoroutineScope()
         Button(onClick = {
