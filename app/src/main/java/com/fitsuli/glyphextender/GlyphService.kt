@@ -16,6 +16,7 @@ import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.fitsuli.glyphextender.extensions.animateProgress
 import com.fitsuli.glyphextender.extensions.animateProgressBackToStop
 import com.fitsuli.glyphextender.extensions.showPauseBlink
 import com.fitsuli.glyphextender.utils.getMediaSessionToken
@@ -303,7 +304,7 @@ class GlyphService : NotificationListenerService() {
                     .also { file.appendText(it) }
             )
             connectServiceAndAwait()
-            mGM.displayProgress(glyphFrameC, currentProgress)
+            mGM.animateProgress(frame = glyphFrameC, to = currentProgress)
             return
         }
 
@@ -315,7 +316,7 @@ class GlyphService : NotificationListenerService() {
             connectServiceAndAwait()
             val glyphProgress = (progress * 100 / maxProgress).coerceIn(0, 100)
             Timber.d("Progress: $progress, max: $maxProgress, final glyphProgress: $glyphProgress")
-            mGM.displayProgress(glyphFrameC, glyphProgress)
+            mGM.animateProgress(frame = glyphFrameC, to = glyphProgress)
             return
         }
 
@@ -391,7 +392,7 @@ class GlyphService : NotificationListenerService() {
             cleanupMediaSession()
             delay(5000)
             if (isActive) {
-                mGM.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+                mGM.animateProgressBackToStop(frame = glyphFrameC, from = currentProgress)
                 disconnectServiceAndAwait()
                 Timber.d("Media playback job finished, glyph session closed")
             }
@@ -424,7 +425,7 @@ class GlyphService : NotificationListenerService() {
 
         return when (state) {
             PlaybackState.STATE_PLAYING -> {
-                mGM.displayProgress(frame, progress)
+                mGM.animateProgress(frame = frame, to = progress)
                 true to progress
             }
 
@@ -436,7 +437,9 @@ class GlyphService : NotificationListenerService() {
 
             PlaybackState.STATE_PAUSED -> {
                 mGM.showPauseBlink()
-                false to progress
+                delay(1500)
+                mGM.animateProgress(frame = frame, to = 0, slower = true)
+                false to 0
             }
 
             else -> false to progress

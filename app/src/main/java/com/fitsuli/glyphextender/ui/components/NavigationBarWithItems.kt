@@ -28,8 +28,7 @@ fun NavigationBarWithItems(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val selectedNavItem by remember {
         derivedStateOf {
-            val routeHierarchy =
-                navBackStackEntry?.destination?.hierarchy?.map { it.route }?.toList()
+            val routeHierarchy = navBackStackEntry?.destination?.hierarchy?.map { it.route }
             items.firstOrNull { screen ->
                 routeHierarchy?.contains(screen.route::class.qualifiedName) == true
             } ?: NavigationItems.Home

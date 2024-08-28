@@ -6,17 +6,10 @@ import com.nothing.ketchum.Glyph.Code_23111
 
 /* loaded from: KetchumSDK_Community_20240307.jar:com/nothing/ketchum/GlyphFrame.class */
 class GlyphFrame private constructor(builder: Builder) {
-    private var mChannel = mutableListOf<Int?>()
-    var period: Int = 0
-    var cycles: Int = 1
-    var interval: Int = 0
-
-    init {
-        this.period = builder.period
-        this.cycles = builder.cycles
-        this.interval = builder.interval
-        this.mChannel = builder.channel
-    }
+    private val mChannel = builder.channel
+    val period: Int = builder.period
+    val cycles: Int = builder.cycles
+    val interval: Int = builder.interval
 
     val channel: IntArray = IntArray(mChannel.size) { i ->
         mChannel[i] ?: 0 // fill with data from mChannel or 0 if null
