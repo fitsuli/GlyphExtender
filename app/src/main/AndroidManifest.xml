@@ -10,28 +10,33 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".App"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
+        android:enableOnBackInvokedCallback="true"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:enableOnBackInvokedCallback="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.GlyphExtender">
         <service
             android:name=".GlyphService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:process=":glyph">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="The service is supposed to extract data / progress bars from notifications and communicate them to the user through physical Glyph Interface.
+                As the service augments the everyday use of device, it is supposed to run in the foreground all the time, and should not be killed by the system" />
         </service>
 
         <meta-data
@@ -40,8 +45,8 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true"
             android:configChanges="fontScale|keyboard|keyboardHidden|layoutDirection|locale|mcc|mnc|navigation|orientation|screenLayout|touchscreen|uiMode"
+            android:exported="true"
             android:theme="@style/Theme.GlyphExtender">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

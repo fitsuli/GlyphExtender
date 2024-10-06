@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fitsuli.glyphextender.R
 import com.fitsuli.glyphextender.ui.components.SimpleScaffold
+import com.fitsuli.glyphextender.ui.components.icons.ClearAll
 import com.fitsuli.glyphextender.utils.transformDate
 
 /**
@@ -35,6 +38,14 @@ fun NotificationsScreen(
         scrollState = null,
         contentPadding = PaddingValues(0.dp),
         headerText = stringResource(id = R.string.notifications),
+        actions = {
+            IconButton(onClick = viewModel::clearAllNotifications) {
+                Icon(
+                    imageVector = ClearAll,
+                    contentDescription = stringResource(id = R.string.clear_all)
+                )
+            }
+        }
     ) {
         val notificationList by viewModel.notificationListFlow.collectAsStateWithLifecycle()
         LazyColumn(

@@ -6,7 +6,6 @@ import android.provider.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.app.NotificationManagerCompat
@@ -14,24 +13,16 @@ import com.fitsuli.glyphextender.BuildConfig
 import com.fitsuli.glyphextender.GlyphService
 import com.fitsuli.glyphextender.R
 import com.fitsuli.glyphextender.ui.components.SimpleScaffold
-import com.nothing.ketchum.Common
-import com.nothing.ketchum.Glyph.Code_22111
-import com.nothing.ketchum.GlyphManager
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
  * Created by Dmitry Danilyuk at 04.08.2024
  */
-private val mGM: GlyphManager by lazy {
-    GlyphManager.getInstance()
-}
-
 @Composable
 fun HomeScreen() {
     SimpleScaffold(
         headerText = stringResource(id = R.string.home),
     ) {
+/*
         val scope = rememberCoroutineScope()
         Button(onClick = {
             scope.launch {
@@ -82,7 +73,6 @@ fun HomeScreen() {
         ) {
             Text(text = "progress")
         }
-        val context = LocalContext.current
         Button(
             onClick = {
                 context.startForegroundService(Intent(context, GlyphService::class.java))
@@ -90,7 +80,9 @@ fun HomeScreen() {
         ) {
             Text(text = "run the service manually (!!!)")
         }
+*/
 
+        val context = LocalContext.current
         Button(onClick = {
             if (!NotificationManagerCompat.getEnabledListenerPackages(context)
                     .contains(BuildConfig.APPLICATION_ID)
@@ -111,12 +103,12 @@ fun HomeScreen() {
         }) {
             Text(text = "request notification access when not granted")
         }
-        Button(
-            onClick = {
-                scope.launch { mGM.turnOff() }
-            }
-        ) {
-            Text(text = "turn off")
-        }
+        /*        Button(
+                    onClick = {
+                        scope.launch { mGM.turnOff() }
+                    }
+                ) {
+                    Text(text = "turn off")
+                }*/
     }
 }
