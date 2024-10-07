@@ -1,24 +1,27 @@
 package com.fitsuli.glyphextender.ui.screens.home
 
-import android.content.ComponentName
-import android.content.Intent
-import android.provider.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.core.app.NotificationManagerCompat
-import com.fitsuli.glyphextender.BuildConfig
-import com.fitsuli.glyphextender.GlyphService
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fitsuli.glyphextender.R
+import com.fitsuli.glyphextender.ui.components.BiggerSwitch
+import com.fitsuli.glyphextender.ui.components.LifecycleSubscription
 import com.fitsuli.glyphextender.ui.components.SimpleScaffold
 
 /**
  * Created by Dmitry Danilyuk at 04.08.2024
  */
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    viewModel: HomeViewModel = viewModel(),
+) {
+    val isListenerEnabled by viewModel.isListenerEnabledFlow.collectAsStateWithLifecycle()
     SimpleScaffold(
         headerText = stringResource(id = R.string.home),
     ) {
@@ -73,36 +76,21 @@ fun HomeScreen() {
         ) {
             Text(text = "progress")
         }
-        Button(
-            onClick = {
-                context.startForegroundService(Intent(context, GlyphService::class.java))
-            }
-        ) {
-            Text(text = "run the service manually (!!!)")
-        }
+
 */
 
-        val context = LocalContext.current
-        Button(onClick = {
-            if (!NotificationManagerCompat.getEnabledListenerPackages(context)
-                    .contains(BuildConfig.APPLICATION_ID)
-            ) {
-                val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
-                    .putExtra(
-                        Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
-                        ComponentName(
-                            BuildConfig.APPLICATION_ID,
-                            GlyphService::class.java.name
-                        ).flattenToString()
-                    )
+        LifecycleSubscription(
+            onResume = viewModel::checkNotificationListenerEnabled,
+        )
 
-                runCatching {
-                    context.startActivity(intent)
-                }
-            }
-        }) {
-            Text(text = "request notification access when not granted")
-        }
+        BiggerSwitch(
+            text = stringResource(id = R.string.notification_listener),
+            checked = isListenerEnabled,
+            onClick = viewModel::openNotificationListenerSettings,
+            subtitle = if (!isListenerEnabled) stringResource(id = R.string.notification_listener_explanation) else null,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
         /*        Button(
                     onClick = {
                         scope.launch { mGM.turnOff() }
