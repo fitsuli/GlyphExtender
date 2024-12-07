@@ -6,17 +6,26 @@ import com.fitsuli.glyphextender.ServiceConnectionState
 import com.nothing.ketchum.Common
 import com.nothing.ketchum.GlyphCallback
 import com.nothing.ketchum.GlyphManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import timber.log.Timber
 
 class GlyphSessionManager(
     private val context: Context,
     private val glyphManager: GlyphManager = GlyphManager.getInstance(),
 ) {
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var disconnectJob: Job? = null
     private val serviceConnectionState = MutableStateFlow<ServiceConnectionState>(
         ServiceConnectionState.NotConnected
     )
@@ -38,6 +47,11 @@ class GlyphSessionManager(
             // Do not connect when the screen is on, glyphs are not visible
             return
         }
+
+        // Cancel any pending disconnect when connecting
+        disconnectJob?.cancel()
+        disconnectJob = null
+
         if (serviceConnectionState.value is ServiceConnectionState.SessionActive) {
             // Already connected and active
             return
@@ -76,17 +90,28 @@ class GlyphSessionManager(
         serviceConnectionState.update { ServiceConnectionState.SessionActive }
     }
 
-    suspend fun disconnect() {
-        if (serviceConnectionState.value is ServiceConnectionState.SessionActive) {
-            glyphManager.turnOff()
-            glyphManager.closeSession()
-            if (serviceConnectionState.compareAndSet(
+    fun disconnect() {
+        if (serviceConnectionState.value !is ServiceConnectionState.SessionActive) {
+            return
+        }
+
+        disconnectJob?.cancel()
+        disconnectJob = scope.launch {
+            Timber.d("Waiting 5 seconds before disconnecting glyph session")
+            delay(5000)
+            if (serviceConnectionState.value is ServiceConnectionState.SessionActive) {
+                Timber.d("Disconnecting glyph session completely")
+                glyphManager.turnOff()
+                glyphManager.closeSession()
+                if (serviceConnectionState.compareAndSet(
                     ServiceConnectionState.SessionActive,
                     ServiceConnectionState.NotConnected
-                )
-            ) {
-                glyphManager.unInit(context)
+                    )
+                ) {
+                    glyphManager.unInit(context)
+                }
             }
+            disconnectJob = null
         }
     }
 
