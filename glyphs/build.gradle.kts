@@ -28,6 +28,10 @@ android {
         }
     }
 
+    buildFeatures {
+        aidl = true
+    }
+
     packaging {
         resources.excludes += "DebugProbesKt.bin"
     }
