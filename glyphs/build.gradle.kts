@@ -11,7 +11,7 @@ java {
 
 android {
     namespace = "com.nothing.ketchum"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 34

@@ -20,6 +20,9 @@ class YandexNotificationProcessor(
     private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
     private val allowedChannelIds = setOf("order", "order_low")
 
+    override val priority = 2 // Higher than media but lower than critical notifications
+    override val isActive get() = currentProgress > 0
+
     override suspend fun canProcess(sbn: StatusBarNotification): Boolean =
         sbn.packageName == "ru.yandex.taxi" && sbn.notification.channelId in allowedChannelIds
 
@@ -78,6 +81,7 @@ class YandexNotificationProcessor(
             glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
             currentProgress = 0
             taxiActivityMaxProgress = null
+            sessionManager.disconnect()
         }
     }
 }

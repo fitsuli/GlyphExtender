@@ -7,4 +7,5 @@ sealed class ServiceConnectionState {
     data object NotConnected : ServiceConnectionState()
     data object Connecting : ServiceConnectionState()
     data object Connected : ServiceConnectionState()
+    data object SessionActive : ServiceConnectionState()
 }

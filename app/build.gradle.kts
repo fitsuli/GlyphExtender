@@ -13,7 +13,7 @@ java {
 
 android {
     namespace = "com.fitsuli.glyphextender"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.fitsuli.glyphextender"

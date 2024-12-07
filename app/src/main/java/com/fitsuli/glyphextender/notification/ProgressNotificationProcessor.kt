@@ -11,6 +11,9 @@ class ProgressNotificationProcessor(
     private val sessionManager: GlyphSessionManager,
     private val glyphManager: GlyphManager,
 ) : NotificationProcessor {
+
+    override val priority = 0 // lowest priority
+
     private var currentProgress = 0
     private var currentPackageName: String? = null
     private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
@@ -41,6 +44,7 @@ class ProgressNotificationProcessor(
             glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
             currentProgress = 0
             currentPackageName = null
+            sessionManager.disconnect()
         }
     }
 }

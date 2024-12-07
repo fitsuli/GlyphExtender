@@ -20,6 +20,7 @@ class GlyphSessionManager(
     private val serviceConnectionState = MutableStateFlow<ServiceConnectionState>(
         ServiceConnectionState.NotConnected
     )
+
     private val callback = object : GlyphCallback {
         override fun onServiceConnected(componentName: ComponentName) {
             serviceConnectionState.update { ServiceConnectionState.Connected }
@@ -30,16 +31,28 @@ class GlyphSessionManager(
         }
     }
 
+    private var isScreenOn = true
+
     suspend fun connectAndAwait() {
-        if (serviceConnectionState.value is ServiceConnectionState.Connected) {
+        if (isScreenOn) {
+            // Do not connect when the screen is on, glyphs are not visible
+            return
+        }
+        if (serviceConnectionState.value is ServiceConnectionState.SessionActive) {
+            // Already connected and active
             return
         }
 
         serviceConnectionState
-            .onEach { connectServiceWhenNotConnected() }
-            .mapNotNull { it as? ServiceConnectionState.Connected }
+            .onEach { state ->
+                when (state) {
+                    is ServiceConnectionState.NotConnected -> connectServiceWhenNotConnected()
+                    is ServiceConnectionState.Connected -> initializeGlyphManager()
+                    else -> Unit
+                }
+            }
+            .mapNotNull { it as? ServiceConnectionState.SessionActive }
             .take(1)
-            .onEach { initializeGlyphManager() }
             .first()
     }
 
@@ -60,17 +73,27 @@ class GlyphSessionManager(
             Common.is23111() -> glyphManager.register(context, Common.DEVICE_23111)
         }
         glyphManager.openSession()
+        serviceConnectionState.update { ServiceConnectionState.SessionActive }
     }
 
     suspend fun disconnect() {
-        glyphManager.turnOff()
-        glyphManager.closeSession()
-        if (serviceConnectionState.compareAndSet(
-                ServiceConnectionState.Connected,
-                ServiceConnectionState.NotConnected
-            )
-        ) {
-            glyphManager.unInit(context)
+        if (serviceConnectionState.value is ServiceConnectionState.SessionActive) {
+            glyphManager.turnOff()
+            glyphManager.closeSession()
+            if (serviceConnectionState.compareAndSet(
+                    ServiceConnectionState.SessionActive,
+                    ServiceConnectionState.NotConnected
+                )
+            ) {
+                glyphManager.unInit(context)
+            }
+        }
+    }
+
+    suspend fun notifyScreenStateChanged(isScreenOn: Boolean) {
+        this.isScreenOn = isScreenOn
+        if (isScreenOn) {
+            disconnect()
         }
     }
 }

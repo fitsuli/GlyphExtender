@@ -40,8 +40,15 @@ class MediaNotificationProcessor(
 
     private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
 
+    override val priority = 1 // Lower priority than taxi notifications, but higher than progress
+    override val isActive get() = progressJob != null && currentProgress > 0
+
     override suspend fun canProcess(sbn: StatusBarNotification): Boolean =
-        sbn.notification.extras.containsKey(Notification.EXTRA_MEDIA_SESSION)
+        sbn.notification.extras.containsKey(Notification.EXTRA_MEDIA_SESSION) &&
+                !hasHigherPriorityProcessor()
+
+    private fun hasHigherPriorityProcessor() =
+        NotificationProcessorRegistry.hasActiveHigherPriorityProcessor(this)
 
     override suspend fun process(sbn: StatusBarNotification) {
         sessionManager.connectAndAwait()
@@ -53,8 +60,25 @@ class MediaNotificationProcessor(
         if (sbn.packageName == currentPackageName) {
             sessionManager.connectAndAwait()
             progressJob?.cancelAndJoin()
-            cleanupMediaSession()
             glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+            cleanupMediaSession()
+            sessionManager.disconnect()
+        }
+    }
+
+    override suspend fun onScreenStateChanged(isScreenOn: Boolean) {
+        if (isScreenOn) {
+            return
+        }
+        if (currentProgress > 0) {
+            sessionManager.connectAndAwait()
+            Timber.d("Screen turned off, running animating progress from 0 to current: $currentProgress")
+            glyphManager.animateProgress(
+                frame = glyphFrameC,
+                from = 0,
+                to = currentProgress,
+                slower = true
+            )
         }
     }
 
@@ -121,19 +145,25 @@ class MediaNotificationProcessor(
                 glyphManager.animateProgress(frame = glyphFrameC, to = progress)
                 true to progress
             }
-
-            lastMediaPlaybackState -> {
-                Timber.d("Media playback state is the same as last: ${playbackState.state}")
-                false to progress
-            }
-
             PlaybackState.STATE_PAUSED -> {
                 glyphManager.showPauseBlink()
                 delay(1500)
                 glyphManager.animateProgress(frame = glyphFrameC, to = 0, slower = true)
                 false to 0
             }
+            PlaybackState.STATE_STOPPED,
+            PlaybackState.STATE_ERROR,
+            PlaybackState.STATE_NONE,
+                -> {
+                cleanupMediaSession()
+                sessionManager.disconnect()
+                false to 0
+            }
 
+            lastMediaPlaybackState -> {
+                Timber.d("Media playback state is the same as last: ${playbackState.state}")
+                false to progress
+            }
             else -> false to progress
         }.also { lastMediaPlaybackState = playbackState.state }
     }

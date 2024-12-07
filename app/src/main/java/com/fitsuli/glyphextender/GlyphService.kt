@@ -13,8 +13,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.fitsuli.glyphextender.glyph.GlyphSessionManager
 import com.fitsuli.glyphextender.notification.MediaNotificationProcessor
+import com.fitsuli.glyphextender.notification.NotificationProcessorRegistry
 import com.fitsuli.glyphextender.notification.ProgressNotificationProcessor
 import com.fitsuli.glyphextender.notification.YandexNotificationProcessor
+import com.fitsuli.glyphextender.utils.observeScreenState
 import com.fitsuli.glyphextender.utils.prefs.NotificationItem
 import com.nothing.ketchum.GlyphManager
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import timber.log.Timber
 
 private const val SERVICE_CHANNEL_ID = "glyph_extender"
 
@@ -51,7 +54,7 @@ class GlyphService : NotificationListenerService() {
                 sessionManager = glyphSessionManager,
                 glyphManager = GlyphManager.getInstance()
             )
-        )
+        ).onEach { NotificationProcessorRegistry.register(it) }
     }
     private val notificationFlow = MutableSharedFlow<StatusBarNotification>()
     private val notificationPreferences = App.appModule.notificationPrefsRepo
@@ -68,7 +71,10 @@ class GlyphService : NotificationListenerService() {
             notificationPreferences.addNotification(notificationItem)
 
             notificationProcessors
-                .firstOrNull { it.canProcess(sbn) }
+                .firstOrNull {
+                    it.canProcess(sbn) &&
+                            !NotificationProcessorRegistry.hasActiveHigherPriorityProcessor(it)
+                }
                 ?.process(sbn)
         }
 
@@ -76,6 +82,7 @@ class GlyphService : NotificationListenerService() {
         super.onCreate()
         createNotificationChannel()
         startForeground(1, createServiceNotification())
+        launchScreenStateMonitor()
         notificationProcessingFlow.launchIn(scope)
     }
 
@@ -103,10 +110,23 @@ class GlyphService : NotificationListenerService() {
 
     override fun onDestroy() {
         runBlocking {
+//            screenStateJob.cancel()
             glyphSessionManager.disconnect()
             scope.cancel()
         }
         super.onDestroy()
+    }
+
+    private fun launchScreenStateMonitor() {
+        applicationContext.observeScreenState()
+            .onEach { isScreenOn ->
+                Timber.d("Screen state on changed to $isScreenOn")
+                glyphSessionManager.notifyScreenStateChanged(isScreenOn)
+                notificationProcessors.forEach {
+                    it.onScreenStateChanged(isScreenOn)
+                }
+            }
+            .launchIn(scope)
     }
 
     private fun createNotificationChannel() {

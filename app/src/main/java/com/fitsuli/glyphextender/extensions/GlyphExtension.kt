@@ -31,6 +31,7 @@ suspend fun GlyphManager.animateProgress(
     to: Int,
     slower: Boolean = false,
 ) {
+    Timber.d("Media playback progress animate in $from -> $to, slower: $slower, isAnimating: $isAnimating")
     if (from == to || from < 0 || to < 0 || isAnimating) return
     if (abs(from - to) < HIGH_STEP) {
         displayProgress(frame, to)
@@ -56,17 +57,6 @@ suspend fun GlyphManager.animateProgress(
 
 suspend fun GlyphManager.showPauseBlink() {
     Timber.d("Media playback show Pause blink!")
-    /*
-        val frame = glyphFrameBuilder.run {
-            if (Common.is22111()) {
-                buildChannel(Code_22111.C2)
-            } else this
-        }
-            .buildCycles(1)
-            .buildInterval(750)
-            .buildPeriod(1000)
-            .build()
-    */
 
     val frame = glyphFrameBuilder.run {
         if (Common.is22111()) {
