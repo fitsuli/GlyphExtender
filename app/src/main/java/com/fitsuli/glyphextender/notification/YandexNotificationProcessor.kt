@@ -2,22 +2,23 @@ package com.fitsuli.glyphextender.notification
 
 import android.content.Context
 import android.service.notification.StatusBarNotification
-import com.fitsuli.glyphextender.extensions.animateProgress
-import com.fitsuli.glyphextender.extensions.animateProgressBackToStop
+import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
+import com.fitsuli.glyphextender.glyph.GlyphRequest
 import com.fitsuli.glyphextender.glyph.GlyphSessionManager
 import com.fitsuli.glyphextender.utils.getTitleAny
-import com.nothing.ketchum.GlyphManager
 import timber.log.Timber
-import java.io.File
+
+private const val TAXI_PROGRESS_TAG = "taxi_progress"
 
 class YandexNotificationProcessor(
     private val sessionManager: GlyphSessionManager,
-    private val glyphManager: GlyphManager,
+    private val orchestrator: GlyphOrchestrator,
     private val context: Context,
 ) : NotificationProcessor {
     private var currentProgress = 0
     private var taxiActivityMaxProgress: Int? = null
-    private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
+
+    //    private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
     private val allowedChannelIds = setOf("order", "order_low")
 
     override val priority = 2 // Higher than media but lower than critical notifications
@@ -28,14 +29,16 @@ class YandexNotificationProcessor(
 
     override suspend fun process(sbn: StatusBarNotification) {
         val extras = sbn.notification.extras
-        val file = File(context.getExternalFilesDir(null), "notifications.txt").apply {
-            parentFile?.mkdirs()
-        }
+        /*
+                val file = File(context.getExternalFilesDir(null), "notifications.txt").apply {
+                    parentFile?.mkdirs()
+                }
+        */
 
         Timber.d(
             "onNotificationPosted: ${sbn.packageName}\n${sbn.notification}\n" +
                     extras.keySet().joinToString("\n") { key -> "$key: ${extras[key]}" }
-                        .also { file.appendText("$it\n\n") }
+//                        .also { file.appendText("$it\n\n") }
         )
 
         if (!extras.containsKey("android.contains.customView")) {
@@ -44,7 +47,7 @@ class YandexNotificationProcessor(
 
         Timber.d(
             "Custom view found in Yandex notification! It's likely a progress bar, so attempt to parse the text\n"
-                .also { file.appendText(it) }
+//                .also { file.appendText(it) }
         )
 
         val notificationText = extras.getTitleAny() ?: return
@@ -52,7 +55,8 @@ class YandexNotificationProcessor(
 
         if (minutesLeft == null) {
             sessionManager.connectAndAwait()
-            glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+            orchestrator.remove(TAXI_PROGRESS_TAG)
+
             currentProgress = 0
             taxiActivityMaxProgress = null
             return
@@ -68,19 +72,23 @@ class YandexNotificationProcessor(
 
         Timber.d(
             "Taxi activity progress: $progress, real progress: $currentProgress"
-                .also { file.appendText(it) }
+//                .also { file.appendText(it) }
         )
 
         sessionManager.connectAndAwait()
-        glyphManager.animateProgress(frame = glyphFrameC, to = currentProgress)
+        orchestrator.display(
+            GlyphRequest.Progress(
+                id = TAXI_PROGRESS_TAG,
+                priority = priority,
+                progress = currentProgress
+            )
+        )
     }
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (canProcess(sbn)) {
             sessionManager.connectAndAwait()
-            glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
-            currentProgress = 0
-            taxiActivityMaxProgress = null
+            orchestrator.remove(TAXI_PROGRESS_TAG)
             sessionManager.disconnect()
         }
     }

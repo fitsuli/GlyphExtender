@@ -95,4 +95,33 @@ object Glyph {
         const val C_23: Int = 22
         const val C_24: Int = 23
     }
+
+    private val PROGRESS_20111 = listOf(
+        Code_20111.D1_1, Code_20111.D1_2, Code_20111.D1_3,
+        Code_20111.D1_4, Code_20111.D1_5, Code_20111.D1_6,
+        Code_20111.D1_7, Code_20111.D1_8
+    )
+
+    private val PROGRESS_22111 = listOf(
+        Code_22111.C1_1, Code_22111.C1_2, Code_22111.C1_3,
+        Code_22111.C1_4, Code_22111.C1_5, Code_22111.C1_6,
+        Code_22111.C1_7, Code_22111.C1_8, Code_22111.C1_9,
+        Code_22111.C1_10, Code_22111.C1_11, Code_22111.C1_12,
+        Code_22111.C1_13, Code_22111.C1_14, Code_22111.C1_15,
+        Code_22111.C1_16
+    )
+
+    private val PROGRESS_23111 = listOf(
+        Code_23111.C_1, Code_23111.C_2, Code_23111.C_3,
+        Code_23111.C_4, Code_23111.C_5, Code_23111.C_6,
+        Code_23111.C_7, Code_23111.C_8, Code_23111.C_9,
+        Code_23111.C_10, Code_23111.C_11, Code_23111.C_12
+    )
+
+    fun getProgressSegments(): List<Int> = when {
+        Common.is20111() -> PROGRESS_20111
+        Common.is22111() -> PROGRESS_22111
+        Common.is23111() -> PROGRESS_23111
+        else -> emptyList()
+    }
 }

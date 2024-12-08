@@ -11,6 +11,7 @@ import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
 import com.fitsuli.glyphextender.glyph.GlyphSessionManager
 import com.fitsuli.glyphextender.notification.MediaNotificationProcessor
 import com.fitsuli.glyphextender.notification.NotificationProcessorRegistry
@@ -34,25 +35,29 @@ private const val SERVICE_CHANNEL_ID = "glyph_extender"
 
 class GlyphService : NotificationListenerService() {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val glyphSessionManager by lazy(LazyThreadSafetyMode.NONE) {
-        GlyphSessionManager(applicationContext)
+    private val glyphOrchestrator by lazy(LazyThreadSafetyMode.NONE) {
+        GlyphOrchestrator(GlyphManager.getInstance())
     }
+    private val glyphSessionManager by lazy(LazyThreadSafetyMode.NONE) {
+        GlyphSessionManager(context = applicationContext, orchestrator = glyphOrchestrator)
+    }
+
     private val notificationProcessors by lazy(LazyThreadSafetyMode.NONE) {
         listOf(
             MediaNotificationProcessor(
                 sessionManager = glyphSessionManager,
-                glyphManager = GlyphManager.getInstance(),
+                orchestrator = glyphOrchestrator,
                 scope = scope,
                 context = applicationContext
             ),
             YandexNotificationProcessor(
                 sessionManager = glyphSessionManager,
-                glyphManager = GlyphManager.getInstance(),
+                orchestrator = glyphOrchestrator,
                 context = applicationContext
             ),
             ProgressNotificationProcessor(
                 sessionManager = glyphSessionManager,
-                glyphManager = GlyphManager.getInstance()
+                orchestrator = glyphOrchestrator
             )
         ).onEach { NotificationProcessorRegistry.register(it) }
     }

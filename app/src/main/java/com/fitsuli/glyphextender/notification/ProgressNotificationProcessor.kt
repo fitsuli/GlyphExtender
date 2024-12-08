@@ -2,21 +2,21 @@ package com.fitsuli.glyphextender.notification
 
 import android.app.Notification
 import android.service.notification.StatusBarNotification
-import com.fitsuli.glyphextender.extensions.animateProgress
-import com.fitsuli.glyphextender.extensions.animateProgressBackToStop
+import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
+import com.fitsuli.glyphextender.glyph.GlyphRequest
 import com.fitsuli.glyphextender.glyph.GlyphSessionManager
-import com.nothing.ketchum.GlyphManager
+
+private const val GENERIC_PROGRESS_TAG = "generic_progress"
 
 class ProgressNotificationProcessor(
     private val sessionManager: GlyphSessionManager,
-    private val glyphManager: GlyphManager,
+    private val orchestrator: GlyphOrchestrator,
 ) : NotificationProcessor {
 
     override val priority = 0 // lowest priority
 
     private var currentProgress = 0
     private var currentPackageName: String? = null
-    private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
 
     override suspend fun canProcess(sbn: StatusBarNotification): Boolean {
         val extras = sbn.notification.extras
@@ -35,13 +35,20 @@ class ProgressNotificationProcessor(
 
         val glyphProgress = (progress * 100 / maxProgress).coerceIn(0, 100)
         currentProgress = glyphProgress
-        glyphManager.animateProgress(frame = glyphFrameC, to = glyphProgress)
+
+        orchestrator.display(
+            GlyphRequest.Progress(
+                id = GENERIC_PROGRESS_TAG,
+                priority = priority,
+                progress = glyphProgress
+            )
+        )
     }
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (sbn.packageName == currentPackageName) {
             sessionManager.connectAndAwait()
-            glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+            orchestrator.remove(GENERIC_PROGRESS_TAG)
             currentProgress = 0
             currentPackageName = null
             sessionManager.disconnect()

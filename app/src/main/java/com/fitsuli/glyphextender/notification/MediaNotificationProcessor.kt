@@ -7,12 +7,11 @@ import android.media.session.MediaController
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.service.notification.StatusBarNotification
-import com.fitsuli.glyphextender.extensions.animateProgress
-import com.fitsuli.glyphextender.extensions.animateProgressBackToStop
-import com.fitsuli.glyphextender.extensions.showPauseBlink
+import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
+import com.fitsuli.glyphextender.glyph.GlyphRequest
+import com.fitsuli.glyphextender.glyph.GlyphSegment
 import com.fitsuli.glyphextender.glyph.GlyphSessionManager
 import com.fitsuli.glyphextender.utils.getMediaSessionToken
-import com.nothing.ketchum.GlyphManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,9 +23,11 @@ import timber.log.Timber
 
 private const val MIN_DURATION_PROGRESS_MS = 5000
 
+private const val MEDIA_PROGRESS_TAG = "media_progress"
+
 class MediaNotificationProcessor(
     private val sessionManager: GlyphSessionManager,
-    private val glyphManager: GlyphManager,
+    private val orchestrator: GlyphOrchestrator,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
     private val context: Context,
 ) : NotificationProcessor {
@@ -38,7 +39,7 @@ class MediaNotificationProcessor(
     private var currentProgress: Int = 0
     private var progressJob: Job? = null
 
-    private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
+//    private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
 
     override val priority = 1 // Lower priority than taxi notifications, but higher than progress
     override val isActive get() = progressJob != null && currentProgress > 0
@@ -60,7 +61,8 @@ class MediaNotificationProcessor(
         if (sbn.packageName == currentPackageName) {
             sessionManager.connectAndAwait()
             progressJob?.cancelAndJoin()
-            glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+//            glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+            orchestrator.remove(MEDIA_PROGRESS_TAG)
             cleanupMediaSession()
             sessionManager.disconnect()
         }
@@ -73,11 +75,12 @@ class MediaNotificationProcessor(
         if (currentProgress > 0) {
             sessionManager.connectAndAwait()
             Timber.d("Screen turned off, running animating progress from 0 to current: $currentProgress")
-            glyphManager.animateProgress(
-                frame = glyphFrameC,
-                from = 0,
-                to = currentProgress,
-                slower = true
+            orchestrator.display(
+                GlyphRequest.Progress(
+                    id = MEDIA_PROGRESS_TAG,
+                    priority = priority,
+                    progress = currentProgress,
+                )
             )
         }
     }
@@ -123,7 +126,8 @@ class MediaNotificationProcessor(
             cleanupMediaSession()
             delay(5000)
             if (isActive) {
-                glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+//                glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
+                orchestrator.remove(MEDIA_PROGRESS_TAG)
             }
             Timber.d("Media playback job finished, glyph session closed")
         }
@@ -142,13 +146,26 @@ class MediaNotificationProcessor(
 
         return when (playbackState.state) {
             PlaybackState.STATE_PLAYING -> {
-                glyphManager.animateProgress(frame = glyphFrameC, to = progress)
+                orchestrator.display(
+                    GlyphRequest.Progress(
+                        id = MEDIA_PROGRESS_TAG,
+                        priority = priority,
+                        progress = progress
+                    )
+                )
                 true to progress
             }
             PlaybackState.STATE_PAUSED -> {
-                glyphManager.showPauseBlink()
+                orchestrator.display(
+                    GlyphRequest.Static(
+                        id = "media_pause",
+                        priority = priority,
+                        segment = GlyphSegment.Pause,
+                        brightness = 4095
+                    )
+                )
                 delay(1500)
-                glyphManager.animateProgress(frame = glyphFrameC, to = 0, slower = true)
+                orchestrator.remove("media_pause")
                 false to 0
             }
             PlaybackState.STATE_STOPPED,

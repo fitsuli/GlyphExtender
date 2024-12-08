@@ -13,9 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -23,6 +21,7 @@ import timber.log.Timber
 class GlyphSessionManager(
     private val context: Context,
     private val glyphManager: GlyphManager = GlyphManager.getInstance(),
+    private val orchestrator: GlyphOrchestrator,
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var disconnectJob: Job? = null
@@ -65,9 +64,9 @@ class GlyphSessionManager(
                     else -> Unit
                 }
             }
-            .mapNotNull { it as? ServiceConnectionState.SessionActive }
-            .take(1)
-            .first()
+//            .mapNotNull { it as? ServiceConnectionState.SessionActive }
+            //.take(1)
+            .first { it is ServiceConnectionState.SessionActive }
     }
 
     private fun connectServiceWhenNotConnected() {
@@ -118,6 +117,7 @@ class GlyphSessionManager(
     suspend fun notifyScreenStateChanged(isScreenOn: Boolean) {
         this.isScreenOn = isScreenOn
         if (isScreenOn) {
+            orchestrator.clearAnimations()
             disconnect()
         }
     }
