@@ -21,7 +21,6 @@ import timber.log.Timber
 class GlyphSessionManager(
     private val context: Context,
     private val glyphManager: GlyphManager = GlyphManager.getInstance(),
-    private val orchestrator: GlyphOrchestrator,
 ) {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var disconnectJob: Job? = null
@@ -112,18 +111,7 @@ class GlyphSessionManager(
         }
     }
 
-    suspend fun notifyScreenStateChanged(isScreenOn: Boolean) {
+    fun setScreenOn(isScreenOn: Boolean) {
         this.isScreenOn = isScreenOn
-        if (isScreenOn) {
-            Timber.d("Session: screen turned on, clearing animations and disconnecting")
-            orchestrator.clearAnimations()
-            orchestrator.setScreenOn(true)
-            disconnect()
-        } else {
-            Timber.d("Session: screen turned off, reconnecting and restoring animations")
-            connectAndAwait()
-            orchestrator.setScreenOn(false)
-            orchestrator.restoreAnimations()
-        }
     }
 }

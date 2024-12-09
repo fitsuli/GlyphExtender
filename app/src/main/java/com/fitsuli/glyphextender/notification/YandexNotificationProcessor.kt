@@ -1,19 +1,15 @@
 package com.fitsuli.glyphextender.notification
 
-import android.content.Context
 import android.service.notification.StatusBarNotification
 import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
 import com.fitsuli.glyphextender.glyph.GlyphRequest
-import com.fitsuli.glyphextender.glyph.GlyphSessionManager
 import com.fitsuli.glyphextender.utils.getTitleAny
 import timber.log.Timber
 
 private const val TAXI_PROGRESS_TAG = "taxi_progress"
 
 class YandexNotificationProcessor(
-    private val sessionManager: GlyphSessionManager,
     private val orchestrator: GlyphOrchestrator,
-    private val context: Context,
 ) : NotificationProcessor {
     private var currentProgress = 0
     private var taxiActivityMaxProgress: Int? = null
@@ -28,16 +24,9 @@ class YandexNotificationProcessor(
 
     override suspend fun process(sbn: StatusBarNotification) {
         val extras = sbn.notification.extras
-        /*
-                val file = File(context.getExternalFilesDir(null), "notifications.txt").apply {
-                    parentFile?.mkdirs()
-                }
-        */
-
         Timber.d(
             "onNotificationPosted: ${sbn.packageName}\n${sbn.notification}\n" +
                     extras.keySet().joinToString("\n") { key -> "$key: ${extras[key]}" }
-//                        .also { file.appendText("$it\n\n") }
         )
 
         if (!extras.containsKey("android.contains.customView")) {
@@ -46,14 +35,12 @@ class YandexNotificationProcessor(
 
         Timber.d(
             "Custom view found in Yandex notification! It's likely a progress bar, so attempt to parse the text\n"
-//                .also { file.appendText(it) }
         )
 
         val notificationText = extras.getTitleAny() ?: return
         val minutesLeft = notificationText.filter { it.isDigit() }.toIntOrNull()
 
         if (minutesLeft == null) {
-            sessionManager.connectAndAwait()
             orchestrator.remove(TAXI_PROGRESS_TAG)
 
             currentProgress = 0
@@ -71,10 +58,8 @@ class YandexNotificationProcessor(
 
         Timber.d(
             "Taxi activity progress: $progress, real progress: $currentProgress"
-//                .also { file.appendText(it) }
         )
 
-        sessionManager.connectAndAwait()
         orchestrator.display(
             GlyphRequest.Progress(
                 id = TAXI_PROGRESS_TAG,
@@ -86,9 +71,7 @@ class YandexNotificationProcessor(
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (canProcess(sbn)) {
-            sessionManager.connectAndAwait()
             orchestrator.remove(TAXI_PROGRESS_TAG)
-            sessionManager.disconnect()
         }
     }
 }

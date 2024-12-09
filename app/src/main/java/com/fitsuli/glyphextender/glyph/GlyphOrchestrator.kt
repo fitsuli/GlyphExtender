@@ -11,11 +11,13 @@ import kotlin.math.sin
 
 class GlyphOrchestrator(
     private val glyphManager: GlyphManager = GlyphManager.getInstance(),
+    private val sessionManager: GlyphSessionManager,
 ) {
     private val activeRequests = MutableStateFlow<Map<String, GlyphRequest>>(emptyMap())
     private var isScreenOn = true
 
     suspend fun display(request: GlyphRequest, forceStart: Boolean = false) {
+        sessionManager.connectAndAwait()
         when (request) {
             is GlyphRequest.Progress -> {
                 // TODO: should be a cleaner way to handle force start from zero
@@ -85,6 +87,7 @@ class GlyphOrchestrator(
     }
 
     suspend fun remove(requestId: String) {
+        sessionManager.connectAndAwait()
         val request = activeRequests.value[requestId]
         if (request is GlyphRequest.Progress) {
             // Animate progress back to 0 before removing
@@ -94,15 +97,19 @@ class GlyphOrchestrator(
             current - requestId
         }
         updateFrame()
+        sessionManager.disconnect()
     }
 
     suspend fun clear() {
+        sessionManager.connectAndAwait()
         Timber.d("Orchestrator: plain clearing all requests")
         activeRequests.update { emptyMap() }
         glyphManager.turnOff()
+        sessionManager.disconnect()
     }
 
     suspend fun clearAnimations() {
+        sessionManager.connectAndAwait()
         Timber.d("Orchestrator: hiding animations gracefully")
 
         activeRequests.value.forEach { (_, request) ->
@@ -114,9 +121,11 @@ class GlyphOrchestrator(
         }
 
         glyphManager.turnOff()
+        sessionManager.disconnect()
     }
 
     suspend fun restoreAnimations() {
+        sessionManager.connectAndAwait()
         val requests = activeRequests.value
         Timber.d("Orchestrator: restoring ${requests.size} animations")
 
@@ -191,7 +200,15 @@ class GlyphOrchestrator(
         glyphManager.toggle(frame)
     }
 
-    fun setScreenOn(isScreenOn: Boolean) {
-        this.isScreenOn = isScreenOn
+    suspend fun notifyScreenStateChanged(isScreenOn: Boolean) {
+        if (isScreenOn) {
+            Timber.d("Session: screen turned on, clearing animations and disconnecting")
+            clearAnimations()
+            this.isScreenOn = true
+        } else {
+            Timber.d("Session: screen turned off, reconnecting and restoring animations")
+            this.isScreenOn = false
+            restoreAnimations()
+        }
     }
 }

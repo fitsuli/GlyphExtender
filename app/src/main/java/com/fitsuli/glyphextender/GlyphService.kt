@@ -35,29 +35,28 @@ private const val SERVICE_CHANNEL_ID = "glyph_extender"
 
 class GlyphService : NotificationListenerService() {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val glyphOrchestrator by lazy(LazyThreadSafetyMode.NONE) {
-        GlyphOrchestrator(glyphManager = GlyphManager.getInstance())
+    private val sessionManager by lazy(LazyThreadSafetyMode.NONE) {
+        GlyphSessionManager(context = applicationContext)
     }
-    private val glyphSessionManager by lazy(LazyThreadSafetyMode.NONE) {
-        GlyphSessionManager(context = applicationContext, orchestrator = glyphOrchestrator)
+    private val orchestrator by lazy(LazyThreadSafetyMode.NONE) {
+        GlyphOrchestrator(
+            glyphManager = GlyphManager.getInstance(),
+            sessionManager = sessionManager
+        )
     }
 
     private val notificationProcessors by lazy(LazyThreadSafetyMode.NONE) {
         listOf(
             MediaNotificationProcessor(
-                sessionManager = glyphSessionManager,
-                orchestrator = glyphOrchestrator,
+                orchestrator = orchestrator,
                 scope = scope,
                 context = applicationContext
             ),
             YandexNotificationProcessor(
-                sessionManager = glyphSessionManager,
-                orchestrator = glyphOrchestrator,
-                context = applicationContext
+                orchestrator = orchestrator
             ),
             ProgressNotificationProcessor(
-                sessionManager = glyphSessionManager,
-                orchestrator = glyphOrchestrator
+                orchestrator = orchestrator
             )
         ).onEach { NotificationProcessorRegistry.register(it) }
     }
@@ -115,8 +114,7 @@ class GlyphService : NotificationListenerService() {
 
     override fun onDestroy() {
         scope.launch {
-            glyphOrchestrator.clear()
-            glyphSessionManager.disconnect()
+            orchestrator.clear()
         }.invokeOnCompletion {
             if (it != null && it !is CancellationException) {
                 Timber.e(it, "Error during service destroy")
@@ -130,7 +128,9 @@ class GlyphService : NotificationListenerService() {
         applicationContext.observeScreenState()
             .onEach { isScreenOn ->
                 Timber.d("Screen state on changed to $isScreenOn")
-                glyphSessionManager.notifyScreenStateChanged(isScreenOn)
+                sessionManager.setScreenOn(isScreenOn)
+                orchestrator.notifyScreenStateChanged(isScreenOn)
+
                 notificationProcessors.forEach {
                     it.onScreenStateChanged(isScreenOn)
                 }

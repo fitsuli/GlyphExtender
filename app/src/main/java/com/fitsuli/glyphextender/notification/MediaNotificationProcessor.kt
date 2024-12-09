@@ -10,7 +10,6 @@ import android.service.notification.StatusBarNotification
 import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
 import com.fitsuli.glyphextender.glyph.GlyphRequest
 import com.fitsuli.glyphextender.glyph.GlyphSegment
-import com.fitsuli.glyphextender.glyph.GlyphSessionManager
 import com.fitsuli.glyphextender.utils.getMediaSessionToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +26,6 @@ private const val MEDIA_PROGRESS_TAG = "media_progress"
 private const val MEDIA_PAUSE_TAG = "media_pause"
 
 class MediaNotificationProcessor(
-    private val sessionManager: GlyphSessionManager,
     private val orchestrator: GlyphOrchestrator,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
     private val context: Context,
@@ -51,18 +49,15 @@ class MediaNotificationProcessor(
         NotificationProcessorRegistry.hasActiveHigherPriorityProcessor(this)
 
     override suspend fun process(sbn: StatusBarNotification) {
-        sessionManager.connectAndAwait()
         val token = sbn.getMediaSessionToken() ?: return
         updateMediaSession(sbn.packageName, token)
     }
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (sbn.packageName == currentPackageName) {
-            sessionManager.connectAndAwait()
             progressJob?.cancelAndJoin()
             orchestrator.remove(MEDIA_PROGRESS_TAG)
             cleanupMediaSession()
-            sessionManager.disconnect()
         }
     }
 
@@ -152,7 +147,7 @@ class MediaNotificationProcessor(
             PlaybackState.STATE_NONE,
                 -> {
                 cleanupMediaSession()
-                sessionManager.disconnect()
+                orchestrator.remove(MEDIA_PROGRESS_TAG)
                 false to 0
             }
 

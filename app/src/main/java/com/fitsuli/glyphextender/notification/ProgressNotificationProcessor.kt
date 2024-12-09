@@ -4,12 +4,10 @@ import android.app.Notification
 import android.service.notification.StatusBarNotification
 import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
 import com.fitsuli.glyphextender.glyph.GlyphRequest
-import com.fitsuli.glyphextender.glyph.GlyphSessionManager
 
 private const val GENERIC_PROGRESS_TAG = "generic_progress"
 
 class ProgressNotificationProcessor(
-    private val sessionManager: GlyphSessionManager,
     private val orchestrator: GlyphOrchestrator,
 ) : NotificationProcessor {
 
@@ -31,8 +29,6 @@ class ProgressNotificationProcessor(
         val maxProgress = extras.getInt(Notification.EXTRA_PROGRESS_MAX)
 
         currentPackageName = sbn.packageName
-        sessionManager.connectAndAwait()
-
         val glyphProgress = (progress * 100 / maxProgress).coerceIn(0, 100)
         currentProgress = glyphProgress
 
@@ -47,11 +43,9 @@ class ProgressNotificationProcessor(
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (sbn.packageName == currentPackageName) {
-            sessionManager.connectAndAwait()
             orchestrator.remove(GENERIC_PROGRESS_TAG)
             currentProgress = 0
             currentPackageName = null
-            sessionManager.disconnect()
         }
     }
 }
