@@ -18,8 +18,8 @@ interface NotificationProcessor {
      */
     val isActive: Boolean get() = false
 
-    suspend fun onScreenStateChanged(isScreenOn: Boolean) {
-        // Optional callback for screen state changes
-    }
+    // Optional callback for screen state changes
+    suspend fun onScreenStateChanged(isScreenOn: Boolean) = Unit
+
 }
 

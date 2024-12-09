@@ -24,6 +24,7 @@ import timber.log.Timber
 private const val MIN_DURATION_PROGRESS_MS = 5000
 
 private const val MEDIA_PROGRESS_TAG = "media_progress"
+private const val MEDIA_PAUSE_TAG = "media_pause"
 
 class MediaNotificationProcessor(
     private val sessionManager: GlyphSessionManager,
@@ -38,8 +39,6 @@ class MediaNotificationProcessor(
     private var lastMediaPlaybackState: Int = PlaybackState.STATE_NONE
     private var currentProgress: Int = 0
     private var progressJob: Job? = null
-
-//    private val glyphFrameC = glyphManager.glyphFrameBuilder.buildChannelC().build()
 
     override val priority = 1 // Lower priority than taxi notifications, but higher than progress
     override val isActive get() = progressJob != null && currentProgress > 0
@@ -61,27 +60,9 @@ class MediaNotificationProcessor(
         if (sbn.packageName == currentPackageName) {
             sessionManager.connectAndAwait()
             progressJob?.cancelAndJoin()
-//            glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
             orchestrator.remove(MEDIA_PROGRESS_TAG)
             cleanupMediaSession()
             sessionManager.disconnect()
-        }
-    }
-
-    override suspend fun onScreenStateChanged(isScreenOn: Boolean) {
-        if (isScreenOn) {
-            return
-        }
-        if (currentProgress > 0) {
-            sessionManager.connectAndAwait()
-            Timber.d("Screen turned off, running animating progress from 0 to current: $currentProgress")
-            orchestrator.display(
-                GlyphRequest.Progress(
-                    id = MEDIA_PROGRESS_TAG,
-                    priority = priority,
-                    progress = currentProgress,
-                )
-            )
         }
     }
 
@@ -126,7 +107,6 @@ class MediaNotificationProcessor(
             cleanupMediaSession()
             delay(5000)
             if (isActive) {
-//                glyphManager.animateProgressBackToStop(glyphFrameC, from = currentProgress)
                 orchestrator.remove(MEDIA_PROGRESS_TAG)
             }
             Timber.d("Media playback job finished, glyph session closed")
@@ -158,14 +138,13 @@ class MediaNotificationProcessor(
             PlaybackState.STATE_PAUSED -> {
                 orchestrator.display(
                     GlyphRequest.Static(
-                        id = "media_pause",
+                        id = MEDIA_PAUSE_TAG,
                         priority = priority,
                         segment = GlyphSegment.Pause,
-                        brightness = 4095
                     )
                 )
                 delay(1500)
-                orchestrator.remove("media_pause")
+                orchestrator.remove(MEDIA_PAUSE_TAG)
                 false to 0
             }
             PlaybackState.STATE_STOPPED,

@@ -5,25 +5,28 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import timber.log.Timber
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.sin
 
 class GlyphOrchestrator(
     private val glyphManager: GlyphManager = GlyphManager.getInstance(),
 ) {
     private val activeRequests = MutableStateFlow<Map<String, GlyphRequest>>(emptyMap())
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private val animations = mutableMapOf<String, Job>()
+    private var isScreenOn = true
 
-    suspend fun display(request: GlyphRequest) {
+    suspend fun display(request: GlyphRequest, forceStart: Boolean = false) {
         when (request) {
             is GlyphRequest.Progress -> {
-                animations[request.id]?.cancel()
-                animations[request.id] = scope.launch {
-                    val currentProgress =
-                        (activeRequests.value[request.id] as? GlyphRequest.Progress)?.progress ?: 0
-                    if (currentProgress != request.progress) {
-                        Timber.d("Orchestrator: updating progress $currentProgress -> ${request.progress}")
-                        animateProgress(currentProgress, request)
-                    }
+                // TODO: should be a cleaner way to handle force start from zero
+                val currentProgress = if (forceStart) {
+                    0
+                } else {
+                    (activeRequests.value[request.id] as? GlyphRequest.Progress)?.progress ?: 0
+                }
+                if (currentProgress != request.progress) {
+                    Timber.d("Orchestrator: updating progress $currentProgress -> ${request.progress}")
+                    animateProgress(currentProgress, request)
                 }
             }
 
@@ -37,22 +40,44 @@ class GlyphOrchestrator(
     }
 
     private suspend fun animateProgress(from: Int, request: GlyphRequest.Progress) {
-        val step = if (from < request.progress) 5 else -5
-        val range = if (from < request.progress) {
-            from..request.progress step step
-        } else {
-            from downTo request.progress step -step
-        }
+        val distance = request.progress - from
 
-        for (progress in range) {
+        // Skip animation for small changes
+        val absDistance = abs(distance)
+        if (absDistance <= 3) {
             activeRequests.update { current ->
-                current + (request.id to request.copy(progress = progress))
+                current + (request.id to request)
             }
             updateFrame()
-            delay(10)
+            return
         }
 
-        // Ensure final value is set
+        val isIncreasing = distance > 0
+        // Reduced base duration and max duration cap
+        val duration = (100 + (absDistance * 1.5f)).coerceAtMost(250f)
+        val steps = 15 // Slightly fewer steps for faster updates
+
+        val stepDelay = duration / steps
+
+        // Generate smooth acceleration curve
+        for (i in 0..steps) {
+            // Smooth easing using sine curve (accelerate-decelerate)
+            val progress = (sin(PI * (i.toFloat() / steps - 0.5)) + 1) / 2
+
+            val currentValue = if (isIncreasing) {
+                from + (distance * progress).toInt()
+            } else {
+                from - (absDistance * progress).toInt()
+            }.coerceIn(0, 100) // Ensure progress stays within bounds
+
+            activeRequests.update { current ->
+                current + (request.id to request.copy(progress = currentValue))
+            }
+            updateFrame()
+            delay(stepDelay.toLong())
+        }
+
+        // Ensure final value is set exactly
         activeRequests.update { current ->
             current + (request.id to request)
         }
@@ -64,7 +89,6 @@ class GlyphOrchestrator(
         if (request is GlyphRequest.Progress) {
             // Animate progress back to 0 before removing
             display(request.copy(progress = 0))
-            delay(300) // Let animation complete
         }
         activeRequests.update { current ->
             current - requestId
@@ -79,15 +103,44 @@ class GlyphOrchestrator(
     }
 
     suspend fun clearAnimations() {
-        Timber.d("Orchestrator: clearing animations gracefully")
-        activeRequests.value.values
-            .forEach { remove(it.id) }
-        animations.clear()
+        Timber.d("Orchestrator: hiding animations gracefully")
+
+        activeRequests.value.forEach { (_, request) ->
+            // Animate zeroed progresses all back to 0
+            if (request is GlyphRequest.Progress) {
+                Timber.d("Orchestrator: hiding progress ${request.id} ${request.progress} (actually passing 0)")
+                display(request.copy(progress = 0))
+            }
+        }
+
+        glyphManager.turnOff()
+    }
+
+    suspend fun restoreAnimations() {
+        val requests = activeRequests.value
+        Timber.d("Orchestrator: restoring ${requests.size} animations")
+
+        requests.values.forEach { request ->
+            when (request) {
+                is GlyphRequest.Static -> updateFrame()
+                is GlyphRequest.Progress -> {
+                    display(
+                        request,
+                        forceStart = true
+                    ) // Re-trigger animation with original progress
+                }
+            }
+        }
     }
 
     private suspend fun updateFrame() {
+        if (isScreenOn) {
+            Timber.v("Orchestrator: screen is on, skipping frame update")
+            return
+        }
+
         val requests = activeRequests.value
-        Timber.d("Orchestrator: updating frame with ${requests.size} requests")
+        Timber.v("Orchestrator: updating frame with ${requests.size} requests")
         if (requests.isEmpty()) {
             // glyphManager.turnOff()
             return
@@ -136,5 +189,9 @@ class GlyphOrchestrator(
         }.build()
 
         glyphManager.toggle(frame)
+    }
+
+    fun setScreenOn(isScreenOn: Boolean) {
+        this.isScreenOn = isScreenOn
     }
 }

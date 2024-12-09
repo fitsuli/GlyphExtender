@@ -20,7 +20,7 @@ sealed class GlyphSegment {
                 Progress -> Glyph.getProgressSegments()
                 Camera -> when {
                     Common.is20111() -> listOf(Code_20111.A1)
-                    Common.is22111() -> listOf(Code_22111.A1)
+                    Common.is22111() -> listOf(Code_22111.A1, Code_22111.A2)
                     Common.is23111() -> listOf(Code_23111.A)
                     else -> emptyList()
                 }

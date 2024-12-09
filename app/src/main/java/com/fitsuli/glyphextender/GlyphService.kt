@@ -28,15 +28,15 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import timber.log.Timber
+import kotlin.coroutines.cancellation.CancellationException
 
 private const val SERVICE_CHANNEL_ID = "glyph_extender"
 
 class GlyphService : NotificationListenerService() {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val glyphOrchestrator by lazy(LazyThreadSafetyMode.NONE) {
-        GlyphOrchestrator(GlyphManager.getInstance())
+        GlyphOrchestrator(glyphManager = GlyphManager.getInstance())
     }
     private val glyphSessionManager by lazy(LazyThreadSafetyMode.NONE) {
         GlyphSessionManager(context = applicationContext, orchestrator = glyphOrchestrator)
@@ -114,12 +114,16 @@ class GlyphService : NotificationListenerService() {
     }
 
     override fun onDestroy() {
-        runBlocking {
-//            screenStateJob.cancel()
+        scope.launch {
+            glyphOrchestrator.clear()
             glyphSessionManager.disconnect()
+        }.invokeOnCompletion {
+            if (it != null && it !is CancellationException) {
+                Timber.e(it, "Error during service destroy")
+            }
             scope.cancel()
+            super.onDestroy()
         }
-        super.onDestroy()
     }
 
     private fun launchScreenStateMonitor() {
