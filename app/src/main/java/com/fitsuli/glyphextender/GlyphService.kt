@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.fitsuli.glyphextender.glyph.GlyphOrchestrator
 import com.fitsuli.glyphextender.glyph.GlyphSessionManager
+import com.fitsuli.glyphextender.notification.BatteryNotificationProcessor
 import com.fitsuli.glyphextender.notification.MediaNotificationProcessor
 import com.fitsuli.glyphextender.notification.NotificationProcessorRegistry
 import com.fitsuli.glyphextender.notification.ProgressNotificationProcessor
@@ -57,7 +58,12 @@ class GlyphService : NotificationListenerService() {
             ),
             ProgressNotificationProcessor(
                 orchestrator = orchestrator
-            )
+            ),
+            BatteryNotificationProcessor(
+                context = applicationContext,
+                orchestrator = orchestrator,
+                scope = scope
+            ),
         ).onEach { NotificationProcessorRegistry.register(it) }
     }
     private val notificationFlow = MutableSharedFlow<StatusBarNotification>()
@@ -114,6 +120,7 @@ class GlyphService : NotificationListenerService() {
 
     override fun onDestroy() {
         scope.launch {
+            notificationProcessors.forEach { it.dispose() }
             orchestrator.clear()
         }.invokeOnCompletion {
             if (it != null && it !is CancellationException) {

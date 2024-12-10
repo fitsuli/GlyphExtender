@@ -3,23 +3,13 @@ package com.fitsuli.glyphextender.notification
 import android.service.notification.StatusBarNotification
 
 interface NotificationProcessor {
+    val priority: Int
+    val isActive: Boolean
+
     suspend fun canProcess(sbn: StatusBarNotification): Boolean
     suspend fun process(sbn: StatusBarNotification)
     suspend fun onNotificationRemoved(sbn: StatusBarNotification)
-
-    /**
-     * Priority determines which processor takes precedence when multiple can handle the notification
-     * Higher number = higher priority
-     */
-    val priority: Int get() = 0
-
-    /**
-     * Whether this processor is currently active and handling notifications
-     */
-    val isActive: Boolean get() = false
-
-    // Optional callback for screen state changes
-    suspend fun onScreenStateChanged(isScreenOn: Boolean) = Unit
-
+    suspend fun onScreenStateChanged(isScreenOn: Boolean) {}
+    suspend fun dispose() {}
 }
 

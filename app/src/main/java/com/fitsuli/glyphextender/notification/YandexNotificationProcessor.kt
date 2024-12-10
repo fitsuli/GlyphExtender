@@ -71,7 +71,13 @@ class YandexNotificationProcessor(
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (canProcess(sbn)) {
-            orchestrator.remove(TAXI_PROGRESS_TAG)
+            dispose()
         }
+    }
+
+    override suspend fun dispose() {
+        orchestrator.remove(TAXI_PROGRESS_TAG)
+        currentProgress = 0
+        taxiActivityMaxProgress = null
     }
 }

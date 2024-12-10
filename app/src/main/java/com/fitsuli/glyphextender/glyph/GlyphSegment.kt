@@ -11,6 +11,8 @@ sealed class GlyphSegment {
     object Camera : GlyphSegment()
     object Notification : GlyphSegment()
     object Pause : GlyphSegment()
+    object Battery : GlyphSegment()
+    object BatteryDot : GlyphSegment()
 
     private var cachedSegments: List<Int>? = null
 
@@ -24,18 +26,23 @@ sealed class GlyphSegment {
                     Common.is23111() -> listOf(Code_23111.A)
                     else -> emptyList()
                 }
-
                 Notification -> when {
                     Common.is20111() -> listOf(Code_20111.E1)
                     Common.is22111() -> listOf(Code_22111.E1)
                     Common.is23111() -> listOf(Code_23111.B)
                     else -> emptyList()
                 }
-
                 Pause -> when {
                     Common.is20111() -> listOf(Code_20111.C2)
                     Common.is22111() -> listOf(Code_22111.C2)
                     Common.is23111() -> listOf(Code_23111.C_12)
+                    else -> emptyList()
+                }
+                Battery -> Glyph.getBatterySegments()
+                BatteryDot -> when {
+                    Common.is20111() -> listOf(Code_20111.E1)
+                    Common.is22111() -> listOf(Code_22111.E1)
+                    // Common.is23111() -> listOf(Code_23111.B)
                     else -> emptyList()
                 }
             }

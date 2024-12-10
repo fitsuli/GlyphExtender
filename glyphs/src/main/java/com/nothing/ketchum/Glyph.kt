@@ -118,10 +118,36 @@ object Glyph {
         Code_23111.C_10, Code_23111.C_11, Code_23111.C_12
     )
 
+    private val BATTERY_20111 = listOf(
+        Code_20111.D1_1, Code_20111.D1_2, Code_20111.D1_3,
+        Code_20111.D1_4, Code_20111.D1_5, Code_20111.D1_6,
+        Code_20111.D1_7, Code_20111.D1_8
+    )
+
+    private val BATTERY_22111 = listOf(
+        Code_22111.D1_1, Code_22111.D1_2, Code_22111.D1_3,
+        Code_22111.D1_4, Code_22111.D1_5, Code_22111.D1_6,
+        Code_22111.D1_7, Code_22111.D1_8
+    )
+
+    // TODO: it actually has no battery progress
+    /*    private val BATTERY_23111 = listOf(
+            Code_23111.C_13, Code_23111.C_14, Code_23111.C_15,
+            Code_23111.C_16, Code_23111.C_17, Code_23111.C_18,
+            Code_23111.C_19, Code_23111.C_20
+        )*/
+
     fun getProgressSegments(): List<Int> = when {
         Common.is20111() -> PROGRESS_20111
         Common.is22111() -> PROGRESS_22111
         Common.is23111() -> PROGRESS_23111
+        else -> emptyList()
+    }
+
+    fun getBatterySegments(): List<Int> = when {
+        Common.is20111() -> BATTERY_20111
+        Common.is22111() -> BATTERY_22111
+//        Common.is23111() -> BATTERY_23111
         else -> emptyList()
     }
 }

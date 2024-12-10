@@ -159,6 +159,12 @@ class MediaNotificationProcessor(
         }.also { lastMediaPlaybackState = playbackState.state }
     }
 
+    override suspend fun dispose() {
+        progressJob?.cancel()
+        cleanupMediaSession()
+        orchestrator.remove(MEDIA_PROGRESS_TAG)
+    }
+
     private fun cleanupMediaSession() {
         Timber.d("Cleaning up media session!")
         currentMediaToken = null

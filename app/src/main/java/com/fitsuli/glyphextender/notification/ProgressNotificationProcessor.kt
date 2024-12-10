@@ -12,6 +12,7 @@ class ProgressNotificationProcessor(
 ) : NotificationProcessor {
 
     override val priority = 0 // lowest priority
+    override val isActive get() = currentProgress > 0
 
     private var currentProgress = 0
     private var currentPackageName: String? = null
@@ -43,9 +44,13 @@ class ProgressNotificationProcessor(
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (sbn.packageName == currentPackageName) {
-            orchestrator.remove(GENERIC_PROGRESS_TAG)
-            currentProgress = 0
-            currentPackageName = null
+            dispose()
         }
+    }
+
+    override suspend fun dispose() {
+        orchestrator.remove(GENERIC_PROGRESS_TAG)
+        currentProgress = 0
+        currentPackageName = null
     }
 }
