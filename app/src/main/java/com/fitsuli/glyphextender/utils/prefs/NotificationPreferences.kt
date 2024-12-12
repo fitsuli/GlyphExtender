@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class NotificationPreferences(
     val notificationSet: Set<NotificationItem> = setOf(),
+    val workWithScreenOn: Boolean = false,
 )
 
 @Serializable

@@ -7,8 +7,10 @@ import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.fitsuli.glyphextender.App
 import com.fitsuli.glyphextender.BuildConfig
 import com.fitsuli.glyphextender.GlyphService
+import com.fitsuli.glyphextender.utils.stateInWhileSubscribed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -19,6 +21,10 @@ import kotlinx.coroutines.launch
  */
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val isListenerEnabledFlow = MutableStateFlow(false)
+
+    private val notificationPrefs = App.appModule.notificationPrefsRepo
+    val workWithScreenOnFlow = notificationPrefs.getWorkWithScreenOnFlow()
+        .stateInWhileSubscribed(viewModelScope, false)
 
     fun checkNotificationListenerEnabled() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -42,6 +48,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         runCatching {
             getApplication<Application>().startActivity(intent)
+        }
+    }
+
+    fun setWorkWithScreenOn(enabled: Boolean) {
+        viewModelScope.launch {
+            notificationPrefs.setWorkWithScreenOn(enabled)
         }
     }
 

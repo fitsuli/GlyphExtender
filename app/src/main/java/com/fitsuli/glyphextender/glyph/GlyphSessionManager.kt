@@ -42,7 +42,7 @@ class GlyphSessionManager(
 
     suspend fun connectAndAwait() {
         if (isScreenOn) {
-            // Do not connect when the screen is on, glyphs are not visible
+            // Do not connect when the screen is on
             return
         }
 
@@ -56,7 +56,7 @@ class GlyphSessionManager(
         }
 
         serviceConnectionState
-            .onEach { state ->
+            .onEach { state -> 
                 when (state) {
                     is ServiceConnectionState.NotConnected -> connectServiceWhenNotConnected()
                     is ServiceConnectionState.Connected -> initializeGlyphManager()

@@ -22,63 +22,11 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(),
 ) {
     val isListenerEnabled by viewModel.isListenerEnabledFlow.collectAsStateWithLifecycle()
+    val workWithScreenOn by viewModel.workWithScreenOnFlow.collectAsStateWithLifecycle()
+    
     SimpleScaffold(
         headerText = stringResource(id = R.string.home),
     ) {
-/*
-        val scope = rememberCoroutineScope()
-        Button(onClick = {
-            scope.launch {
-                val builder = mGM.glyphFrameBuilder
-                val frame = builder.buildChannelA().build()
-                mGM.toggle(frame)
-            }
-        }) {
-            Text(text = "A")
-        }
-        Button(onClick = {
-            scope.launch {
-                val builder = mGM.glyphFrameBuilder
-                val frame = builder.buildChannelB().buildInterval(7000)
-                    .buildCycles(2).buildPeriod(3000).build()
-                mGM.animate(frame)
-            }
-        }) {
-            Text(text = "B")
-        }
-        Button(onClick = {
-            scope.launch {
-                val builder = mGM.glyphFrameBuilder
-                val frame = builder
-                    .run {
-                        if (Common.is22111()) {
-                            buildChannel(Code_22111.A1)
-                        } else this
-                    }
-                    .build()
-
-                mGM.toggle(frame)
-            }
-        }) {
-            Text(text = "C")
-        }
-        Button(
-            onClick = {
-                val builder = mGM.glyphFrameBuilder
-                val frame = builder.buildChannelC().build()
-                scope.launch {
-                    repeat(100) { i ->
-                        mGM.displayProgress(frame, i)
-                        delay(100)
-                    }
-                }
-            }
-        ) {
-            Text(text = "progress")
-        }
-
-*/
-
         LifecycleSubscription(
             onResume = viewModel::checkNotificationListenerEnabled,
         )
@@ -91,12 +39,13 @@ fun HomeScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        /*        Button(
-                    onClick = {
-                        scope.launch { mGM.turnOff() }
-                    }
-                ) {
-                    Text(text = "turn off")
-                }*/
+        BiggerSwitch(
+            text = stringResource(id = R.string.work_with_screen_on),
+            checked = workWithScreenOn,
+            onClick = { viewModel.setWorkWithScreenOn(!workWithScreenOn) },
+            subtitle = stringResource(id = R.string.work_with_screen_on_explanation),
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }

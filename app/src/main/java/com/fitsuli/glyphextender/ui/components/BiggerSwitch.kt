@@ -59,7 +59,7 @@ fun BiggerSwitch(
                     Text(
                         text = subtitle,
                         style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
                     )
                 }
             }

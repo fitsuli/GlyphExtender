@@ -26,6 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -122,9 +124,9 @@ class GlyphService : NotificationListenerService() {
         scope.launch {
             notificationProcessors.forEach { it.dispose() }
             orchestrator.clear()
-        }.invokeOnCompletion {
-            if (it != null && it !is CancellationException) {
-                Timber.e(it, "Error during service destroy")
+        }.invokeOnCompletion { throwable ->
+            if (throwable != null && throwable !is CancellationException) {
+                Timber.e(throwable, "Error during service destroy")
             }
             scope.cancel()
             super.onDestroy()
@@ -133,11 +135,16 @@ class GlyphService : NotificationListenerService() {
 
     private fun launchScreenStateMonitor() {
         applicationContext.observeScreenState()
+            .combine(notificationPreferences.getWorkWithScreenOnFlow()) { isScreenOn, allowScreenOn ->
+                // If work with screen on is allowed, treat screen as always off
+                Timber.d("Actual screen state changed to $isScreenOn, allowing screen on: $allowScreenOn")
+                if (allowScreenOn) false else isScreenOn
+            }
+            .distinctUntilChanged()
             .onEach { isScreenOn ->
-                Timber.d("Screen state on changed to $isScreenOn")
+                Timber.d("Effective screen state changed to $isScreenOn")
                 sessionManager.setScreenOn(isScreenOn)
                 orchestrator.notifyScreenStateChanged(isScreenOn)
-
                 notificationProcessors.forEach {
                     it.onScreenStateChanged(isScreenOn)
                 }

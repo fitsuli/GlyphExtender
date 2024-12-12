@@ -151,7 +151,6 @@ class GlyphOrchestrator(
         val requests = activeRequests.value
         Timber.v("Orchestrator: updating frame with ${requests.size} requests")
         if (requests.isEmpty()) {
-            // glyphManager.turnOff()
             return
         }
 

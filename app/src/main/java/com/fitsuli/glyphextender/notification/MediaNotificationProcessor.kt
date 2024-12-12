@@ -55,9 +55,7 @@ class MediaNotificationProcessor(
 
     override suspend fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (sbn.packageName == currentPackageName) {
-            progressJob?.cancelAndJoin()
-            orchestrator.remove(MEDIA_PROGRESS_TAG)
-            cleanupMediaSession()
+            dispose()
         }
     }
 
@@ -103,6 +101,7 @@ class MediaNotificationProcessor(
             delay(5000)
             if (isActive) {
                 orchestrator.remove(MEDIA_PROGRESS_TAG)
+                orchestrator.remove(MEDIA_PAUSE_TAG)
             }
             Timber.d("Media playback job finished, glyph session closed")
         }
@@ -121,6 +120,7 @@ class MediaNotificationProcessor(
 
         return when (playbackState.state) {
             PlaybackState.STATE_PLAYING -> {
+                orchestrator.remove(MEDIA_PAUSE_TAG)
                 orchestrator.display(
                     GlyphRequest.Progress(
                         id = MEDIA_PROGRESS_TAG,
@@ -148,6 +148,7 @@ class MediaNotificationProcessor(
                 -> {
                 cleanupMediaSession()
                 orchestrator.remove(MEDIA_PROGRESS_TAG)
+                orchestrator.remove(MEDIA_PAUSE_TAG)
                 false to 0
             }
 
@@ -163,6 +164,7 @@ class MediaNotificationProcessor(
         progressJob?.cancel()
         cleanupMediaSession()
         orchestrator.remove(MEDIA_PROGRESS_TAG)
+        orchestrator.remove(MEDIA_PAUSE_TAG)
     }
 
     private fun cleanupMediaSession() {

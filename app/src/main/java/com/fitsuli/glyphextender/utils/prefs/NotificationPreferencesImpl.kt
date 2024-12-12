@@ -28,4 +28,12 @@ class NotificationPreferencesImpl(
             pref.copy(notificationSet = updatedSet)
         }
     }
+
+    fun getWorkWithScreenOnFlow() = dataStore.data.map { it.workWithScreenOn }
+
+    suspend fun setWorkWithScreenOn(enabled: Boolean) {
+        dataStore.updateData { pref ->
+            pref.copy(workWithScreenOn = enabled)
+        }
+    }
 }
